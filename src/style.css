@@ -25,6 +25,7 @@
   --radius-lg: 24px;
 
   --shadow-premium: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-glow: rgba(56, 189, 248, 0.3);
   --font-main: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
@@ -589,7 +590,7 @@ input[type="number"].hw-input-massive {
 .sub-tab-btn.active {
   background: var(--color-primary);
   color: var(--color-bg);
-  box-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+  box-shadow: 0 2px 8px var(--shadow-glow);
 }
 
 /* ─── Small Icon Buttons (Edit/Delete in lists) ──────── */

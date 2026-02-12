@@ -27,7 +27,7 @@ class AppEngine {
   private async init() {
     console.log("[L'Architecte] Démarrage du Système Heavyweight...");
 
-    // Infrastructure — DB V4
+    // Infrastructure — DB V5
     await PersistenceEngine.init();
     await this.seedIfNeeded();
     await WealthManager.init();

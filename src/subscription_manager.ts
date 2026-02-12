@@ -1,25 +1,16 @@
 import { PersistenceEngine } from './persistence';
 import type { Subscription, ExpenseCategory } from './models';
 import { escapeHTML } from './sanitize';
+import { CATEGORIES, VALID_CATEGORIES } from './categories';
 
 /**
  * SubscriptionManager [Abonnements Récurrents]
  * Gère les abonnements mensuels avec auto-matérialisation en dépenses.
  */
 
-const CATEGORIES: Record<ExpenseCategory, { emoji: string; label: string; color: string }> = {
-  logement: { emoji: '🏠', label: 'Logement', color: '#6366F1' },
-  courses: { emoji: '🛒', label: 'Courses', color: '#10B981' },
-  transport: { emoji: '🚗', label: 'Transport', color: '#F59E0B' },
-  loisirs: { emoji: '🎮', label: 'Loisirs', color: '#EC4899' },
-  sante: { emoji: '💊', label: 'Santé', color: '#EF4444' },
-  abonnements: { emoji: '📱', label: 'Abonnements', color: '#8B5CF6' },
-  shopping: { emoji: '🛍️', label: 'Shopping', color: '#3B82F6' },
-  autre: { emoji: '📎', label: 'Autre', color: '#6B7280' }
-};
-
 export class SubscriptionManager {
   private static editingId: number | null = null;
+  private static editingStartDate: string | null = null;
 
   static async init() {
     this.setupForm();
@@ -38,6 +29,12 @@ export class SubscriptionManager {
     }
   }
 
+  /** Génère le monthKey courant au format YYYY-MM */
+  private static getCurrentMonthKey(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
   /** Configure le formulaire d'ajout/modification */
   private static setupForm() {
     const form = document.getElementById('sub-form');
@@ -50,24 +47,27 @@ export class SubscriptionManager {
 
       const label = labelInput.value.trim();
       const amount = parseFloat(amountInput.value);
-      const category = categorySelect.value as ExpenseCategory;
+      const categoryRaw = categorySelect.value;
 
       if (!label || !amount || amount <= 0) return;
 
-      const now = new Date();
-      const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      // P2-04: Validate category against known values
+      if (!VALID_CATEGORIES.has(categoryRaw)) return;
+      const category = categoryRaw as ExpenseCategory;
 
       if (this.editingId !== null) {
-        // Mode édition
+        // P0-02: Preserve original startDate in edit mode
+        const startDate = this.editingStartDate || this.getCurrentMonthKey();
         await PersistenceEngine.updateSubscription({
           id: this.editingId,
           label,
           amount,
           category,
           startDate,
-          active: true
+          active: 1
         });
         this.editingId = null;
+        this.editingStartDate = null;
         const submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) submitBtn.textContent = 'AJOUTER';
       } else {
@@ -76,8 +76,8 @@ export class SubscriptionManager {
           label,
           amount,
           category,
-          startDate,
-          active: true
+          startDate: this.getCurrentMonthKey(),
+          active: 1
         });
       }
 
@@ -101,6 +101,8 @@ export class SubscriptionManager {
       if (deleteBtn) {
         const id = parseInt(deleteBtn.dataset.subId || '0');
         if (id) {
+          // P2-02: Confirmation avant suppression
+          if (!confirm('Supprimer cet abonnement ?')) return;
           await PersistenceEngine.deleteSubscription(id);
           if (navigator.vibrate) navigator.vibrate(20);
           await this.render();
@@ -133,6 +135,8 @@ export class SubscriptionManager {
     categorySelect.value = sub.category;
 
     this.editingId = id;
+    // P0-02: Store original startDate for preservation
+    this.editingStartDate = sub.startDate;
 
     const submitBtn = document.querySelector('#sub-form button[type="submit"]');
     if (submitBtn) submitBtn.textContent = 'MODIFIER';
@@ -144,7 +148,7 @@ export class SubscriptionManager {
   /** Render complet : summary + list */
   static async render() {
     const subs = await PersistenceEngine.getAllSubscriptions();
-    const activeSubs = subs.filter(s => s.active);
+    const activeSubs = subs.filter(s => s.active === 1);
     this.renderSummary(activeSubs);
     this.renderList(activeSubs);
   }
@@ -160,7 +164,9 @@ export class SubscriptionManager {
       totalEl.textContent = `${total.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`;
     }
     if (countEl) {
-      countEl.textContent = `${subs.length} abonnement${subs.length !== 1 ? 's' : ''} actif${subs.length !== 1 ? 's' : ''}`;
+      // P3-01: Simplified pluralization
+      const n = subs.length;
+      countEl.textContent = `${n} abonnement${n !== 1 ? 's' : ''} actif${n !== 1 ? 's' : ''}`;
     }
   }
 
@@ -182,11 +188,11 @@ export class SubscriptionManager {
             <span class="expense-cat-icon" style="background: ${cat.color}20; color: ${cat.color};">${cat.emoji}</span>
             <div style="min-width: 0;">
               <div style="font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(s.label)}</div>
-              <div class="label-caps" style="font-size: 0.55rem;">${cat.label} · depuis ${s.startDate}</div>
+              <div class="label-caps" style="font-size: 0.55rem;">${escapeHTML(cat.label)} · depuis ${escapeHTML(s.startDate)}</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="font-weight: 800; color: var(--color-accent);">${s.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €<span style="font-weight: 400; font-size: 0.7rem; color: #94A3B8;">/mois</span></span>
+            <span style="font-weight: 800; color: var(--color-primary);">${s.amount.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €<span style="font-weight: 400; font-size: 0.7rem; color: #94A3B8;">/mois</span></span>
             <button class="sub-edit-btn btn-icon-sm" data-sub-id="${s.id}" title="Modifier">✏️</button>
             <button class="sub-delete-btn btn-icon-sm" data-sub-id="${s.id}" title="Supprimer">🗑️</button>
           </div>

@@ -82,7 +82,7 @@ export interface Subscription {
   amount: number;        // montant mensuel
   category: ExpenseCategory;
   startDate: string;     // "2026-02" (YYYY-MM)
-  active: boolean;       // true = actif, false = résilié
+  active: number;        // 1 = actif, 0 = résilié (number for IDB indexing)
 }
 
 // ─── Configuration ────────────────────────────────────────

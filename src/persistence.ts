@@ -527,7 +527,7 @@ export class PersistenceEngine {
       const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readonly');
       const store = tx.objectStore(this.STORE_SUBSCRIPTIONS);
       const index = store.index('by_active');
-      const req = index.getAll(1);  // IDB stores boolean as 0/1
+      const req = index.getAll(1);  // active=1 (number, IDBValidKey-compatible)
       req.onsuccess = () => resolve(req.result as Subscription[]);
       req.onerror = () => reject(req.error);
     });
