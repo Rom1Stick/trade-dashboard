@@ -120,7 +120,7 @@ class AppEngine {
 
       // Re-render subscriptions when switching to that tab
       if (target === 'subscriptions') {
-        SubscriptionManager.render();
+        void SubscriptionManager.render();
       }
 
       this.triggerHaptic('click');

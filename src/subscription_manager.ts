@@ -181,7 +181,7 @@ export class SubscriptionManager {
     }
 
     container.innerHTML = subs.map(s => {
-      const cat = CATEGORIES[s.category];
+      const cat = CATEGORIES[s.category] ?? CATEGORIES['autre'];
       return `
         <div class="hw-list-item sub-item">
           <div style="display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;">
