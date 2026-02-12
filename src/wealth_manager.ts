@@ -195,19 +195,27 @@ export class WealthManager {
 
     if (this.forecastChart) this.forecastChart.destroy();
 
-    const monthlyContribution = history && history.length > 0 ? history[0].total : 1000;
+    // P0: Utiliser la part investissement (25%), pas le salaire total
+    let monthlyContribution = 1000 * 0.25; // fallback
+    if (history && history.length > 0) {
+      const investItem = history[0].items?.find(i => i.category === 'investissement');
+      monthlyContribution = investItem ? investItem.amount : history[0].total * 0.25;
+    }
     const simulation = WealthEngine.calculateCompound(monthlyContribution, this.currentAPR, 120);
+
+    // P1: Filtrer pour ne garder que les points annuels (mois 0, 12, 24, ...)
+    const yearlyData = simulation.filter(s => s.month % 12 === 0);
 
     this.forecastChart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: simulation.map(s => `Y${Math.floor(s.month / 12)}`),
+        labels: yearlyData.map(s => `Année ${s.month / 12}`),
         datasets: [{
           label: 'Croissance Prévue (€)',
-          data: simulation.map(s => s.balance),
+          data: yearlyData.map(s => s.balance),
           borderColor: '#38BDF8',
           borderWidth: 3,
-          pointRadius: 0,
+          pointRadius: 3,
           tension: 0.4,
           fill: true,
           backgroundColor: (context) => {
