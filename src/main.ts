@@ -4,6 +4,7 @@ import { StreamManager } from './stream_manager';
 import { PersistenceEngine } from './persistence';
 import { SafeVault } from './vault';
 import { ExpenseManager } from './expense_manager';
+import { SubscriptionManager } from './subscription_manager';
 import { mockTrades, mockTradeFees } from './mock_data';
 import { Chart, registerables } from 'chart.js';
 import type { TradeFee } from './models';
@@ -39,6 +40,8 @@ class AppEngine {
     this.initTrades();
     this.initTradeModal();
     ExpenseManager.init();
+    await SubscriptionManager.init();
+    this.initSubTabs();
     this.initEvolutionChart();
 
     console.log("[L'Architecte] Système Opérationnel.");
@@ -93,6 +96,33 @@ class AppEngine {
       document.querySelectorAll('.view-section').forEach(s => (s as HTMLElement).style.display = 'none');
       const configView = document.getElementById('view-config');
       if (configView) configView.style.display = 'block';
+      this.triggerHaptic('click');
+    });
+  }
+
+  private initSubTabs() {
+    const bar = document.querySelector('.sub-tab-bar');
+    bar?.addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('.sub-tab-btn') as HTMLElement | null;
+      if (!btn) return;
+
+      const target = btn.dataset.subtab;
+      if (!target) return;
+
+      // Switch active button
+      bar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Switch content
+      document.querySelectorAll('.subtab-content').forEach(c => (c as HTMLElement).style.display = 'none');
+      const content = document.getElementById(`subtab-${target}`);
+      if (content) content.style.display = 'block';
+
+      // Re-render subscriptions when switching to that tab
+      if (target === 'subscriptions') {
+        SubscriptionManager.render();
+      }
+
       this.triggerHaptic('click');
     });
   }

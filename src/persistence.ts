@@ -1,13 +1,13 @@
-import type { Trade, TradeFee, Allocation, AllocationItem, AppConfig, PortfolioSnapshot, Expense } from './models';
+import type { Trade, TradeFee, Allocation, AllocationItem, AppConfig, PortfolioSnapshot, Expense, Subscription } from './models';
 
 /**
  * PersistenceEngine [3FN]
- * Couche de persistence normalisée — IndexedDB V4.
- * Stores : allocations, allocation_items, trades, trade_fees, snapshots, expenses, app_config
+ * Couche de persistence normalisée — IndexedDB V5.
+ * Stores : allocations, allocation_items, trades, trade_fees, snapshots, expenses, subscriptions, app_config
  */
 export class PersistenceEngine {
   private static DB_NAME = 'GridVault_DB';
-  private static DB_VERSION = 4;
+  private static DB_VERSION = 5;
   private static dbInstance: IDBDatabase | null = null;
 
   // Store names
@@ -17,6 +17,7 @@ export class PersistenceEngine {
   static readonly STORE_TRADE_FEES = 'trade_fees';
   static readonly STORE_SNAPSHOTS = 'snapshots';
   static readonly STORE_EXPENSES = 'expenses';
+  static readonly STORE_SUBSCRIPTIONS = 'subscriptions';
   static readonly STORE_CONFIG = 'app_config';
 
   static async init(): Promise<IDBDatabase> {
@@ -81,6 +82,15 @@ export class PersistenceEngine {
           expStore.createIndex('by_week_key', 'week_key', { unique: false });
           expStore.createIndex('by_category', 'category', { unique: false });
           expStore.createIndex('by_timestamp', 'timestamp', { unique: false });
+        }
+
+        // ─── Subscriptions (Abonnements récurrents) ────────
+        if (!db.objectStoreNames.contains(this.STORE_SUBSCRIPTIONS)) {
+          const subStore = db.createObjectStore(this.STORE_SUBSCRIPTIONS, {
+            keyPath: 'id',
+            autoIncrement: true
+          });
+          subStore.createIndex('by_active', 'active', { unique: false });
         }
 
         // ─── App Config ──────────────────────────────────
@@ -498,6 +508,128 @@ export class PersistenceEngine {
     return summary;
   }
 
+  // ─── Subscriptions (Abonnements) ─────────────────────────
+
+  static async saveSubscription(sub: Omit<Subscription, 'id'>): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readwrite');
+      const store = tx.objectStore(this.STORE_SUBSCRIPTIONS);
+      const req = store.add(sub);
+      req.onsuccess = () => resolve(req.result as number);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async getActiveSubscriptions(): Promise<Subscription[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readonly');
+      const store = tx.objectStore(this.STORE_SUBSCRIPTIONS);
+      const index = store.index('by_active');
+      const req = index.getAll(1);  // IDB stores boolean as 0/1
+      req.onsuccess = () => resolve(req.result as Subscription[]);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  static async getAllSubscriptions(): Promise<Subscription[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readonly');
+      const store = tx.objectStore(this.STORE_SUBSCRIPTIONS);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result as Subscription[]);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  static async updateSubscription(sub: Subscription): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readwrite');
+      const store = tx.objectStore(this.STORE_SUBSCRIPTIONS);
+      store.put(sub);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async deleteSubscription(subId: number): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readwrite');
+      const store = tx.objectStore(this.STORE_SUBSCRIPTIONS);
+      store.delete(subId);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /**
+   * Matérialise les abonnements actifs en dépenses pour un mois donné.
+   * Ne génère que si pas déjà fait (vérifie via app_config).
+   * @param monthKey ex: "2026-02"
+   */
+  static async materializeSubscriptions(monthKey: string): Promise<number> {
+    const configKey = `subs_materialized_${monthKey}`;
+    const db = await this.init();
+
+    // Vérifier si déjà matérialisé
+    const existing = await new Promise<AppConfig | undefined>((resolve) => {
+      const tx = db.transaction(this.STORE_CONFIG, 'readonly');
+      const req = tx.objectStore(this.STORE_CONFIG).get(configKey);
+      req.onsuccess = () => resolve(req.result as AppConfig | undefined);
+    });
+
+    if (existing) return 0;
+
+    // Récupérer les abonnements actifs
+    const subs = await this.getActiveSubscriptions();
+    if (subs.length === 0) return 0;
+
+    // Calculer la première semaine du mois (pour le week_key)
+    const [year, month] = monthKey.split('-').map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const dayOfWeek = firstDay.getDay() || 7; // 1=Lundi
+    const monday = new Date(firstDay);
+    monday.setDate(firstDay.getDate() - dayOfWeek + 1);
+    // ISO week number
+    const janFirst = new Date(monday.getFullYear(), 0, 1);
+    const weekNum = Math.ceil(((monday.getTime() - janFirst.getTime()) / 86400000 + janFirst.getDay() + 1) / 7);
+    const weekKey = `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+
+    // Créer les dépenses
+    const tx = db.transaction([this.STORE_EXPENSES, this.STORE_CONFIG], 'readwrite');
+    const expenseStore = tx.objectStore(this.STORE_EXPENSES);
+    const configStore = tx.objectStore(this.STORE_CONFIG);
+
+    let count = 0;
+    for (const sub of subs) {
+      if (sub.startDate <= monthKey) {
+        expenseStore.add({
+          amount: sub.amount,
+          category: sub.category,
+          label: `🔄 ${sub.label}`,
+          timestamp: firstDay.getTime(),
+          week_key: weekKey
+        });
+        count++;
+      }
+    }
+
+    // Marquer comme matérialisé
+    configStore.put({ key: configKey, value: new Date().toISOString() });
+
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => {
+        console.log(`[Abonnements] ${count} abonnement(s) matérialisé(s) pour ${monthKey}`);
+        resolve(count);
+      };
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   // ─── Maintenance ───────────────────────────────────────
 
   static async clearAll(): Promise<void> {
@@ -509,6 +641,7 @@ export class PersistenceEngine {
       this.STORE_TRADE_FEES,
       this.STORE_SNAPSHOTS,
       this.STORE_EXPENSES,
+      this.STORE_SUBSCRIPTIONS,
       this.STORE_CONFIG
     ];
     return new Promise((resolve, reject) => {

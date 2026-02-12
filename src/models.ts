@@ -74,6 +74,17 @@ export interface Expense {
   week_key: string;      // ISO week: "2026-W07"
 }
 
+// ─── Abonnements (Recurring Subscriptions) ────────────────
+
+export interface Subscription {
+  id?: number;           // autoIncrement PK
+  label: string;         // ex: "Netflix", "Spotify"
+  amount: number;        // montant mensuel
+  category: ExpenseCategory;
+  startDate: string;     // "2026-02" (YYYY-MM)
+  active: boolean;       // true = actif, false = résilié
+}
+
 // ─── Configuration ────────────────────────────────────────
 
 export interface AppConfig {

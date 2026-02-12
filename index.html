@@ -102,6 +102,15 @@
         <!-- View: Expense Tracker (Finari-Style) -->
         <div id="view-lab" class="view-section" style="display: none;">
           
+          <!-- Sub-Tab Switcher -->
+          <div class="sub-tab-bar">
+            <button class="sub-tab-btn active" data-subtab="expenses">📅 SEMAINE</button>
+            <button class="sub-tab-btn" data-subtab="subscriptions">🔄 ABONNEMENTS</button>
+          </div>
+
+          <!-- === Sub-View: Expenses (existing) === -->
+          <div id="subtab-expenses" class="subtab-content">
+
           <!-- Week Navigation -->
           <div class="hw-card glass-card">
             <div class="expense-week-header">
@@ -168,6 +177,51 @@
               <div id="expense-global-legend" class="custom-legend"></div>
             </div>
           </div>
+
+          </div><!-- /subtab-expenses -->
+
+          <!-- === Sub-View: Subscriptions === -->
+          <div id="subtab-subscriptions" class="subtab-content" style="display: none;">
+
+          <!-- Summary Hero Card -->
+          <div class="hw-card glass-card" style="text-align: center;">
+            <span class="label-caps">TOTAL MENSUEL</span>
+            <div id="sub-total" class="title-hero" style="font-size: 2rem; margin: 4px 0;">0,00 €</div>
+            <div id="sub-count" class="label-caps" style="font-size: 0.65rem; color: #94A3B8;">0 abonnement actif</div>
+          </div>
+
+          <!-- Add Subscription Form -->
+          <div class="hw-card">
+            <span class="label-caps">NOUVEL ABONNEMENT</span>
+            <form id="sub-form" style="margin-top: 12px;">
+              <input type="text" id="sub-label" class="hw-input-massive" placeholder="Netflix, Spotify..." style="font-size: 1rem;" required>
+              <div style="display: flex; gap: 10px; margin-top: 10px;">
+                <div style="flex: 1;">
+                  <input type="number" id="sub-amount" class="hw-input-massive" placeholder="€/mois" step="0.01" style="font-size: 1.25rem;" required>
+                </div>
+                <div style="flex: 1;">
+                  <select id="sub-category" class="hw-input-massive" style="font-size: 0.85rem;" required>
+                    <option value="abonnements">📱 Abonnements</option>
+                    <option value="logement">🏠 Logement</option>
+                    <option value="transport">🚗 Transport</option>
+                    <option value="loisirs">🎮 Loisirs</option>
+                    <option value="sante">💊 Santé</option>
+                    <option value="autre">📎 Autre</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="btn-primary u-mt-lg">AJOUTER</button>
+            </form>
+          </div>
+
+          <!-- Subscription List -->
+          <div class="hw-card">
+            <span class="label-caps">MES ABONNEMENTS</span>
+            <div id="sub-list" class="hw-list" style="margin-top: 10px;"></div>
+          </div>
+
+          </div><!-- /subtab-subscriptions -->
+
         </div>
 
         <!-- View: Technical Config -->
