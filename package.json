@@ -1,0 +1,20 @@
+{
+  "name": "trade-dashboard",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/pako": "^2.0.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "pako": "^2.1.0"
+  }
+}

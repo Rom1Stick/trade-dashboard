@@ -1,0 +1,556 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+:root {
+  /* The Heavyweight: Midnight Navy Palette */
+  --color-bg: #0F172A;
+  --color-surface: #1E293B;
+  --color-surface-hover: #334155;
+  --color-text: #F8FAFC;
+  --color-text-muted: #94A3B8;
+  --color-primary: #38BDF8;
+  /* Sky Blue Accent */
+  --color-success: #10B981;
+  --color-danger: #EF4444;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-glass: rgba(30, 41, 59, 0.7);
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --shadow-premium: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --font-main: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-main);
+  height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* --- Layout Shell --- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-bottom: 90px;
+  /* Safe area for Mobile Nav */
+}
+
+.content-container {
+  padding: var(--spacing-lg);
+  max-width: 600px;
+  /* Focused mobile-first width */
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* --- Heavyweight Cards --- */
+.hw-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-premium);
+  margin-bottom: var(--spacing-lg);
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.hw-card:active {
+  transform: scale(0.98);
+}
+
+.glass-card {
+  background: var(--color-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* --- Typography --- */
+.title-hero {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1;
+  margin: var(--spacing-xs) 0;
+}
+
+.label-caps {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* --- Interactive Elements --- */
+button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #000;
+  font-weight: 700;
+  padding: 18px;
+  border-radius: var(--radius-md);
+  width: 100%;
+  font-size: 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.3);
+}
+
+.btn-icon {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  width: 48px;
+  /* Mobile touch target min */
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text);
+  font-size: 1.25rem;
+}
+
+/* --- Forms (Massive & Mobile-Only) --- */
+.hw-input-group {
+  margin: var(--spacing-xl) 0;
+}
+
+.hw-input-massive {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--color-border);
+  width: 100%;
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--color-text);
+  outline: none;
+  padding: var(--spacing-sm) 0;
+  transition: border-color 0.2s ease;
+}
+
+.hw-input-massive:focus {
+  border-color: var(--color-primary);
+}
+
+/* --- Navigation & Tabs --- */
+.heavy-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 85px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 1000;
+}
+
+.nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 10px;
+}
+
+.nav-item.active {
+  color: var(--color-primary);
+}
+
+.nav-item i {
+  font-size: 1.5rem;
+  margin-bottom: 4px;
+}
+
+/* --- Charts Integration --- */
+.chart-box-large {
+  width: 100%;
+  height: 280px;
+}
+
+.camembert-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+  margin-top: var(--spacing-md);
+}
+
+.camembert-container {
+  width: 220px;
+  height: 220px;
+}
+
+.custom-legend {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.legend-card {
+  background: var(--color-bg);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+/* --- Lists & Scrollers --- */
+.hw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hw-list-item {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-md);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pnl-pos {
+  color: var(--color-success);
+  font-weight: 700;
+}
+
+.pnl-neg {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+/* --- Modals & Overlays --- */
+.hw-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  justify-content: center;
+  align-items: flex-end;
+  /* Mobile Bottom Sheet */
+  z-index: 2000;
+}
+
+.hw-bottom-sheet {
+  background: var(--color-bg);
+  width: 100%;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  padding: var(--spacing-xl);
+  max-width: 600px;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* --- Utilities --- */
+.privacy-blur {
+  filter: blur(12px);
+  transition: filter 0.3s ease;
+}
+
+.u-mt-lg {
+  margin-top: var(--spacing-lg);
+}
+
+/* --- Mobile Specific Fixes --- */
+@media (max-width: 380px) {
+  .title-hero {
+    font-size: 1.75rem;
+  }
+
+  .hw-input-massive {
+    font-size: 2.75rem;
+  }
+}
+
+/* --- Trade P&L Modal (Broker-Grade) --- */
+.trade-sheet {
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-xl);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.trade-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.trade-sheet-pair {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-right: var(--spacing-sm);
+}
+
+.trade-sheet-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 100px;
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--color-primary);
+}
+
+.trade-sheet-badge.short {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--color-danger);
+}
+
+.trade-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.trade-detail-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--color-surface);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.trade-detail-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.trade-fees-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.trade-fees-list {
+  margin-top: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.trade-fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px var(--spacing-md);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.trade-fee-row .fee-type {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.trade-fee-row .fee-amount {
+  font-weight: 700;
+  color: var(--color-danger);
+}
+
+.trade-fee-row .fee-actual {
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 100px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--color-success);
+  font-weight: 700;
+}
+
+.trade-pnl-banner {
+  border-radius: var(--radius-md);
+  padding: var(--spacing-lg);
+  margin-top: var(--spacing-sm);
+}
+
+.trade-pnl-banner.pnl-pos {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.05));
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.trade-pnl-banner.pnl-neg {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(239, 68, 68, 0.05));
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.trade-pnl-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.9rem;
+}
+
+.trade-pnl-net {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.hw-list-item.clickable {
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.15s ease;
+}
+
+.hw-list-item.clickable:active {
+  transform: scale(0.97);
+  border-color: var(--color-primary);
+}
+
+/* ─── Expense Tracker (Finari-Style) ──────────────────── */
+
+.expense-week-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.expense-cat-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 1.15rem;
+  flex-shrink: 0;
+}
+
+.expense-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.expense-delete-btn {
+  background: none;
+  border: none;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.5;
+  transition: opacity 0.2s ease, transform 0.15s ease;
+}
+
+.expense-delete-btn:active {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+select.hw-input-massive {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: var(--color-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2394A3B8'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 18px;
+  padding-right: 32px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+select.hw-input-massive option {
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 10px;
+  font-size: 0.95rem;
+}
+
+/* Hide number input spinners */
+input[type="number"].hw-input-massive::-webkit-outer-spin-button,
+input[type="number"].hw-input-massive::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"].hw-input-massive {
+  -moz-appearance: textfield;
+}
+
+/* Global chart section */
+.expense-global-section {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+}
