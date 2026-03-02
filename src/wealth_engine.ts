@@ -43,10 +43,10 @@ export class WealthEngine {
    * Calculate compounding trajectory.
    * Formula: A = P(1 + r/n)^(nt) + PMT * (((1 + r/n)^(nt) - 1) / (r/n))
    */
-  static calculateCompound(monthlyInvest: number, annualRate: number, months: number = 120): ForecastData[] {
+  static calculateCompound(monthlyInvest: number, annualRate: number, months: number = 120, initialBalance: number = 0): ForecastData[] {
     const r = annualRate / 100 / 12; // Monthly rate
     const data: ForecastData[] = [];
-    let currentBalance = 0;
+    let currentBalance = initialBalance;
 
     for (let m = 0; m <= months; m++) {
       if (m > 0) {
@@ -55,5 +55,18 @@ export class WealthEngine {
       data.push({ month: m, balance: currentBalance });
     }
     return data;
+  }
+
+  /**
+   * Calculates weighted average yield, skipping dynamic (price-based) platforms.
+   */
+  static calculateWeightedYield(allocations: { amount: number, annual_yield: number, type?: 'fixed' | 'dynamic' }[]): number {
+    // Only count 'fixed' yield platforms. Dynamic assets (BTC) are tracked by value variation, not annual %.
+    const yieldAllocations = allocations.filter(a => a.type !== 'dynamic');
+    const totalAmount = yieldAllocations.reduce((sum, a) => sum + a.amount, 0);
+    if (totalAmount === 0) return 0;
+
+    const weightedSum = yieldAllocations.reduce((sum, a) => sum + (a.amount * a.annual_yield), 0);
+    return weightedSum / totalAmount;
   }
 }

@@ -10,22 +10,48 @@
   <body>
     <div id="app" class="app-shell">
       
+      <!-- Passcode Overlay -->
+      <div id="passcode-overlay" class="hw-overlay" style="display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; background: var(--color-bg, #0B0E14); position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+        <div class="hw-card" style="text-align: center; max-width: 400px; padding: 40px 20px;">
+          <h2 style="margin-bottom: 20px; font-family: 'Space Grotesk', sans-serif;">ACCÈS RESTREINT</h2>
+          <form id="passcode-form">
+            <input type="password" id="passcode-input" class="hw-input-massive" placeholder="Code d'accès" style="text-align: center; letter-spacing: 5px; font-size: 1.5rem;" required>
+            <p id="passcode-error" style="color: var(--color-error); font-size: 0.8rem; margin-top: 10px; display: none;">Code incorrect.</p>
+            <button type="submit" class="btn-primary" style="margin-top: 20px; width: 100%;">DÉVERROUILLER</button>
+          </form>
+        </div>
+      </div>
+
       <!-- Top Sticky Header -->
-      <header class="content-container" style="padding-top: 30px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <div id="account-status-badge" class="label-caps" style="background: var(--color-surface); padding: 4px 10px; border-radius: 100px;">SYSTÈME : ACTIF</div>
-          <div style="display: flex; gap: 12px;">
+      <header class="content-container hw-header-main">
+        <div class="hw-flex-between" style="margin-bottom: 20px;">
+          <div id="account-status-badge" class="label-caps hw-status-badge">SYSTÈME : ACTIF</div>
+          <div class="hw-flex-center-gap">
+            <button id="toggle-pessimistic" class="btn-icon" title="Audit Mode Pessimiste">🛡️</button>
             <button id="privacy-toggle" class="btn-icon">👁️</button>
             <button id="nav-config-trigger" class="btn-icon">⚙️</button>
           </div>
         </div>
         
-        <div class="account-overview">
-          <span class="label-caps">VALEUR DU PORTEFEUILLE PRO</span>
-          <h1 id="total-net-worth" class="title-hero">0,00 €</h1>
-          <div id="market-pulse-link" style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
-            <span id="connection-status" style="width: 8px; height: 8px; border-radius: 50%; background: var(--color-success);"></span>
-            <span class="label-caps" style="font-size: 0.6rem;">LIAISON BINGX TEMPS RÉEL</span>
+        <div class="account-overview" id="header-allocation-strip">
+          <span class="label-caps">RÉPARTITION DU CAPITAL</span>
+          <div class="widget-strip hw-widget-grid">
+            <div class="widget-card hw-widget-center">
+              <div class="widget-label">💎 INVESTISSEMENT</div>
+              <div class="widget-value hw-font-lg" id="header-invest-total">0,00 €</div>
+            </div>
+            <div class="widget-card hw-widget-center">
+              <div class="widget-label">🛡️ SÉCURITÉ</div>
+              <div class="widget-value hw-font-lg" id="header-securite-total">0,00 €</div>
+            </div>
+            <div class="widget-card hw-widget-center">
+              <div class="widget-label">🎮 LOISIRS</div>
+              <div class="widget-value hw-font-lg" id="header-loisirs-total">0,00 €</div>
+            </div>
+          </div>
+          <div id="market-pulse-link" class="hw-flex-center-gap" style="margin-top: 8px;">
+            <span id="connection-status" class="hw-status-dot success"></span>
+            <span class="label-caps hw-text-small">LIAISON BINGX TEMPS RÉEL</span>
           </div>
         </div>
       </header>
@@ -35,43 +61,351 @@
         
         <!-- View: Assets / Dashboard -->
         <div id="view-dashboard" class="view-section">
-          <div class="hw-card glass-card">
-            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+
+          <!-- 1. Hero Card — Solde + P&L Aujourd'hui + Date -->
+          <div class="hw-card glass-card full-width">
+            <div class="hw-flex-start">
               <div>
-                <span class="label-caps">EQUITY CRYPTO</span>
-                <div id="equity-value" class="title-hero" style="font-size: 1.75rem;">0,00 €</div>
+                <span class="label-caps">SOLDE DU COMPTE <span id="pessimistic-badge" class="badge-pessimistic" style="display: none; background: var(--color-error); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.6rem; vertical-align: middle; margin-left: 8px;">MODE PESSIMISTE</span></span>
+                <div class="hero-date" id="hero-date"></div>
+                <div id="equity-value" class="title-hero hw-font-hero">0,00 $</div>
+                <div style="margin-top: 4px;">
+                  <span class="label-caps hw-text-tiny" style="color: var(--color-slate-400);">FRAIS CUMULÉS : <span id="total-fees-display" class="pnl-neg">0,00 $</span></span>
+                </div>
               </div>
               <div style="text-align: right;">
-                <span class="label-caps">PROFIT 24H</span>
-                <div id="profit-value" class="pnl-pos" style="font-size: 1.25rem;">+0,00 €</div>
+                <span class="label-caps">P&amp;L AUJOURD'HUI</span>
+                <div id="profit-value" class="hw-hero-pnl-pos">+0,00 $</div>
+                <div id="profit-trades-count" class="hero-date">0 TRADES</div>
               </div>
             </div>
           </div>
 
-          <div class="hw-card">
-            <span class="label-caps">MATRICE DE PERFORMANCE</span>
+          <!-- Risk Analysis Card (Pessimistic Mode) -->
+          <div id="risk-card" class="hw-card risk-card" style="display: none; margin-top: 15px; border-left: 4px solid var(--color-error);">
+            <div class="label-caps hw-text-muted-compact">DIAGNOSTIC DE RÉSILIENCE</div>
+            <div class="hw-grid-2-col u-mt-sm">
+              <div class="risk-item">
+                <div class="label-caps hw-text-tiny">CASH RUNWAY</div>
+                <div id="risk-runway" class="widget-value" style="font-size: 1.2rem;">-- mois</div>
+              </div>
+              <div class="risk-item">
+                <div class="label-caps hw-text-tiny">CRASH TEST (-50%)</div>
+                <div id="risk-crash" class="widget-value pnl-neg" style="font-size: 1.2rem;">-- $</div>
+              </div>
+            </div>
+            <div class="risk-footer u-mt-md">
+              <div class="risk-score-bar" style="height: 6px; background: var(--color-slate-800); border-radius: 3px; overflow: hidden; margin-bottom: 8px;">
+                <div id="risk-score-fill" style="height: 100%; width: 0%; background: var(--color-primary); transition: width 0.3s ease;"></div>
+              </div>
+              <div class="hw-flex-between">
+                <span id="risk-score-label" class="label-caps" style="font-size: 0.6rem;">SCORE : --</span>
+                <span class="label-caps" style="font-size: 0.6rem; color: var(--color-error);">PESSIMISTE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diversification Card (Intelligence V2 - Pessimistic Mode) -->
+          <div id="diversification-card" class="hw-card risk-card" style="display: none; margin-top: 15px; border-left: 4px solid var(--color-primary);">
+            <div class="label-caps hw-text-muted-compact">ANALYSE DE DIVERSIFICATION</div>
+            <div class="hw-grid-2-col u-mt-sm">
+              <div class="risk-item">
+                <div class="label-caps hw-text-tiny">SCORE DIVERSIFICATION</div>
+                <div id="diversification-score" class="widget-value" style="font-size: 1.2rem;">--/100</div>
+              </div>
+              <div class="risk-item">
+                <div class="label-caps hw-text-tiny">EXPOSITION MAX</div>
+                <div id="exposure-max" class="widget-value" style="font-size: 1.2rem;">-- %</div>
+              </div>
+            </div>
+            <div id="exposure-alerts-container" class="u-mt-md" style="display: flex; flex-direction: column; gap: 8px;">
+              <!-- Dynamic Alerts -->
+            </div>
+            <div class="risk-footer u-mt-md">
+              <div class="risk-score-bar" style="height: 6px; background: var(--color-slate-800); border-radius: 3px; overflow: hidden; margin-bottom: 4px;">
+                <div id="diversification-score-fill" style="height: 100%; width: 0%; background: var(--color-primary); transition: width 0.3s ease;"></div>
+              </div>
+              <div class="hw-flex-between">
+                <span class="label-caps" style="font-size: 0.6rem;">VARIÉTÉ D'ACTIFS</span>
+                <span class="label-caps" style="font-size: 0.6rem; color: var(--color-primary);">INTELLIGENCE V2</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Sync Bar -->
+          <div class="hw-card hw-sync-bar">
+            <div>
+              <span id="sync-timestamp" class="label-caps hw-text-muted-compact">DERNIÈRE SYNC : JAMAIS</span>
+            </div>
+            <button id="btn-sync-bingx" type="button" class="hw-btn-sync">
+              <span id="sync-icon">🔄</span>
+              <span id="sync-label">SYNC BINGX</span>
+            </button>
+          </div>
+
+          <!-- 3. Crypto Widgets — Based on BingX Balance -->
+          <div class="widget-strip" style="grid-template-columns: 1fr 1fr 1fr;">
+            <div class="widget-card">
+              <div class="widget-label">ÉQUITÉ CRYPTO</div>
+              <div class="widget-value" id="crypto-equity-value">—</div>
+              <div class="widget-meta" id="crypto-equity-pnl">Sync requise</div>
+            </div>
+            <div class="widget-card">
+              <div class="widget-label">P&amp;L NON RÉALISÉ</div>
+              <div class="widget-value" id="crypto-unrealized-pnl">—</div>
+              <div class="widget-meta">Positions ouvertes</div>
+            </div>
+            <div class="widget-card">
+              <div class="widget-label">SIZING MAX / TRADE</div>
+              <div class="widget-value" id="max-trade-size">— $</div>
+              <div class="widget-meta">5% DU CAPITAL CRYPTO</div>
+            </div>
+          </div>
+
+          <!-- 3b. Currency Widget — Live Rates -->
+          <div class="hw-card glass-card currency-widget-container">
+            <span class="label-caps" style="font-size: 0.65rem;">💱 DEVISES LIVE</span>
+            <div id="currency-widget" class="currency-widget-grid">
+              <span class="currency-updated">Chargement...</span>
+            </div>
+          </div>
+
+          <!-- 4. Widget Strip — P&L 24H / 7J / 30J -->
+          <div class="widget-strip">
+            <div class="widget-card">
+              <div class="widget-label">P&amp;L 24H</div>
+              <div class="widget-value pnl-pos" id="widget-pnl-24h">+0,00 €</div>
+              <div class="widget-meta" id="widget-meta-24h">0 trades</div>
+            </div>
+            <div class="widget-card">
+              <div class="widget-label">P&amp;L 7 JOURS</div>
+              <div class="widget-value pnl-pos" id="widget-pnl-7d">+0,00 €</div>
+              <div class="widget-meta" id="widget-meta-7d">0 trades</div>
+            </div>
+            <div class="widget-card">
+              <div class="widget-label">P&amp;L 30 JOURS</div>
+              <div class="widget-value pnl-pos" id="widget-pnl-30d">+0,00 €</div>
+              <div class="widget-meta" id="widget-meta-30d">0 trades</div>
+            </div>
+          </div>
+
+          <!-- 4. Performance Chart — with period tabs -->
+          <div class="hw-card full-width">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+              <span class="label-caps">ÉVOLUTION DU CAPITAL</span>
+              <div class="period-tabs" id="chart-period-tabs">
+                <button type="button" class="period-tab" data-period="7">1S</button>
+                <button type="button" class="period-tab active" data-period="30">1M</button>
+                <button type="button" class="period-tab" data-period="90">3M</button>
+                <button type="button" class="period-tab" data-period="0">ALL</button>
+              </div>
+            </div>
             <div class="chart-box-large">
               <canvas id="evolutionChart"></canvas>
             </div>
           </div>
 
-          <div class="hw-list" id="trade-list">
-            <!-- Dynamic Trade Rows -->
+          <!-- 5. Day-by-Day Trade Browser -->
+          <div class="hw-card" id="trade-browser">
+            <div class="day-nav">
+              <button type="button" class="btn-day" id="day-prev">◀</button>
+              <span class="day-label" id="day-label">AUJOURD'HUI</span>
+              <button type="button" class="btn-day" id="day-next" disabled>▶</button>
+            </div>
+            <div class="trade-day-container" id="trade-day-container">
+              <!-- Dynamic daily trades -->
+            </div>
+            <div class="daily-summary" id="daily-summary">
+              <span class="summary-label">BILAN DU JOUR</span>
+              <span class="summary-value pnl-pos" id="daily-pnl">+0,00 €</span>
+            </div>
           </div>
+
         </div>
 
         <!-- View: Wealth Management -->
         <div id="view-wealth" class="view-section" style="display: none;">
-          <div class="hw-card glass-card">
-            <span class="label-caps">INJECTION DE CAPITAL MENSUELLE</span>
-            <form id="wealth-form" class="hw-input-group">
-              <input type="number" id="salary-input" class="hw-input-massive" placeholder="0,00" step="0.01">
-              <p class="text-muted" style="font-size: 0.75rem; margin-top: 10px;">Enregistrez l'allocation du mois actuel et mettez à jour l'historique.</p>
-              <button type="submit" class="btn-primary u-mt-lg">LANCER L'ALLOCATION</button>
-            </form>
+
+          <div class="hw-flex-between" style="margin-bottom: 20px;">
+            <span class="label-caps">HUB PATRIMOINE</span>
+            <div class="hw-flex-center-gap">
+              <button id="export-wealth-csv" class="hw-btn-icon-subtle" aria-label="Exporter patrimoine en CSV" title="Exporter CSV">
+                📥
+              </button>
+              <button id="toggle-wealth-config" class="hw-btn-icon-subtle">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3"></path><path d="M19 10H14a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h5"></path></svg>
+              </button>
+            </div>
           </div>
 
+          <!-- Platform Manager (Hidden by default) -->
+          <div id="platform-manager-card" class="hw-card hw-platform-config-card" style="display: none;">
+            <div class="hw-flex-between" style="margin-bottom: 12px;">
+              <span class="label-caps" style="color: var(--color-primary);">CONFIGURATION DES PLATEFORMES</span>
+              <button id="close-wealth-config" class="btn-icon-subtle" style="border:none; background:none; font-size:1.2rem;">✕</button>
+            </div>
+              <form id="platform-form" class="hw-input-group u-mt-md">
+                <div class="hw-grid-platform-form">
+                  <div>
+                    <label for="platform-name" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">NOM</label>
+                    <input type="text" id="platform-name" class="hw-input" placeholder="ex: Binance" aria-label="Nom de la plateforme" required>
+                  </div>
+                  <div>
+                    <label for="platform-yield" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">RENDEMENT ANNUEL (%)</label>
+                    <input type="number" id="platform-yield" class="hw-input" placeholder="0.0" step="0.1" aria-label="Rendement annuel en pourcentage" required>
+                  </div>
+                  <button type="submit" class="btn-primary" style="height: 42px; padding: 0 15px;">+</button>
+                </div>
+              </form>
+              <div id="platform-list" class="u-mt-md hw-flex-wrap-gap">
+                <!-- Platform tags generated by TS -->
+              </div>
+            </div>
+
+            <!-- Wealth Injection Form -->
+            <div class="hw-card glass-card">
+              <span class="label-caps">INJECTION DE CAPITAL MENSUELLE</span>
+              <form id="wealth-form" class="hw-input-group">
+                <div class="hw-salary-input-container">
+                  <div>
+                    <label for="salary-input" class="label-caps hw-text-small" style="margin-bottom: 8px; display: block; color: var(--color-primary);">MONTANT TOTAL</label>
+                    <input type="number" id="salary-input" class="hw-input-massive hw-salary-input-header" placeholder="0.00" step="any" aria-label="Montant total mensuel">
+                  </div>
+                  <div>
+                    <label for="wealth-date-input" class="label-caps hw-text-small" style="margin-bottom: 8px; display: block;">DATE D'INJECTION</label>
+                    <input type="date" id="wealth-date-input" class="hw-input" style="height: 52px; border-radius: 12px;" aria-label="Date de l'injection de capital">
+                  </div>
+                </div>
+
+                <!-- Dynamic Investment Breakdown -->
+                <div id="investment-diversification" class="hw-box-diversification" style="display: none;">
+                  <div class="hw-flex-between" style="margin-bottom: 8px;">
+                    <span class="label-caps" style="font-size: 0.65rem; color: var(--color-text);">QUOTA INVESTISSEMENT</span>
+                    <span id="investment-quota-label" style="font-weight: 800; color: var(--color-primary);">0.00 €</span>
+                  </div>
+                  
+                  <div class="hw-progress-bar">
+                    <div id="alloc-progress-fill" class="hw-progress-fill"></div>
+                  </div>
+
+                  <div class="hw-flex-between" style="margin-bottom: 15px;">
+                    <div id="alloc-warning" style="font-size: 0.6rem; color: var(--color-danger); display: none;">
+                      <span id="remaining-prefix">Reste : </span><span id="remaining-quota">0.00</span>€
+                    </div>
+                    <button type="button" id="add-platform-alloc" class="btn-primary hw-btn-add-platform">+ PLATEFORME</button>
+                  </div>
+
+                  <div id="platform-allocations-list" style="display: flex; flex-direction: column; gap: 12px;">
+                    <!-- Allocation rows generated by TS -->
+                  </div>
+                </div>
+
+                <button type="submit" id="submit-allocation" class="btn-primary u-mt-md hw-btn-submit-wealth">LANCER L'ALLOCATION</button>
+              </form>
+            </div>
+
+          <!-- Net Worth Banner -->
+          <div id="net-worth-banner" class="hw-card net-worth-banner" style="display: none;">
+            <span class="label-caps" style="margin-bottom: 12px; display: block;">💰 PATRIMOINE NET</span>
+            <div class="net-worth-grid">
+              <div class="nw-item">
+                <span class="label-caps hw-text-muted-compact">ACTIFS BRUTS</span>
+                <span id="nw-gross" class="widget-value pnl-pos">0,00 $</span>
+              </div>
+              <div class="nw-item nw-minus">
+                <span style="font-size: 1.2rem; color: var(--color-muted);">−</span>
+              </div>
+              <div class="nw-item">
+                <span class="label-caps hw-text-muted-compact">PASSIFS</span>
+                <span id="nw-liabilities" class="widget-value pnl-neg">0,00 $</span>
+              </div>
+              <div class="nw-item nw-equals">
+                <span style="font-size: 1.2rem; color: var(--color-muted);">=</span>
+              </div>
+              <div class="nw-item">
+                <span class="label-caps hw-text-muted-compact">NET</span>
+                <span id="nw-net" class="title-hero" style="font-size: 1.4rem;">0,00 $</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Liabilities Manager -->
           <div class="hw-card">
+            <div class="hw-flex-between" style="margin-bottom: 12px;">
+              <span class="label-caps">📋 GESTION DES PASSIFS</span>
+              <button id="toggle-liabilities" class="btn-icon-subtle" style="border:none; background:none; font-size:1rem;" aria-label="Afficher/masquer les passifs">▼</button>
+            </div>
+
+            <div id="liabilities-section">
+              <!-- Liability Summary -->
+              <div class="liability-summary-grid">
+                <div class="liability-summary-item">
+                  <span class="label-caps hw-text-muted-compact">PASSIFS ACTIFS</span>
+                  <span id="liability-count" class="widget-value">0</span>
+                </div>
+                <div class="liability-summary-item">
+                  <span class="label-caps hw-text-muted-compact">TOTAL RESTANT</span>
+                  <span id="liability-total-remaining" class="widget-value pnl-neg">0,00 $</span>
+                </div>
+                <div class="liability-summary-item">
+                  <span class="label-caps hw-text-muted-compact">MENSUALITÉS</span>
+                  <span id="liability-total-monthly" class="widget-value">0,00 $</span>
+                </div>
+              </div>
+
+              <!-- Add Liability Form -->
+              <form id="liability-form" class="liability-form">
+                <div class="liability-form-grid">
+                  <div>
+                    <label for="liability-label" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">LIBELLÉ</label>
+                    <input type="text" id="liability-label" class="hw-input" placeholder="ex: Crédit Maison" aria-label="Libellé du passif" required>
+                  </div>
+                  <div>
+                    <label for="liability-type" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">TYPE</label>
+                    <select id="liability-type" class="hw-input" aria-label="Type de passif">
+                      <option value="credit_immo">🏠 Crédit Immo</option>
+                      <option value="pret_conso">🚗 Prêt Conso</option>
+                      <option value="dette">💳 Dette</option>
+                      <option value="autre">📄 Autre</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="liability-initial" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">MONTANT INITIAL ($)</label>
+                    <input type="number" id="liability-initial" class="hw-input" placeholder="200000" step="any" aria-label="Montant initial emprunté" required>
+                  </div>
+                  <div>
+                    <label for="liability-remaining" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">RESTANT DÛ ($)</label>
+                    <input type="number" id="liability-remaining" class="hw-input" placeholder="180000" step="any" aria-label="Solde restant dû">
+                  </div>
+                  <div>
+                    <label for="liability-monthly" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">MENSUALITÉ ($)</label>
+                    <input type="number" id="liability-monthly" class="hw-input" placeholder="850" step="any" aria-label="Mensualité" required>
+                  </div>
+                  <div>
+                    <label for="liability-rate" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">TAUX (%)</label>
+                    <input type="number" id="liability-rate" class="hw-input" placeholder="2.5" step="0.01" aria-label="Taux d'intérêt annuel">
+                  </div>
+                  <div>
+                    <label for="liability-start" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">DÉBUT</label>
+                    <input type="month" id="liability-start" class="hw-input" aria-label="Date de début du prêt">
+                  </div>
+                  <div>
+                    <label for="liability-end" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">FIN (OPT.)</label>
+                    <input type="month" id="liability-end" class="hw-input" aria-label="Date de fin du prêt">
+                  </div>
+                </div>
+                <button type="submit" class="btn-primary u-mt-md" style="width: 100%;">+ AJOUTER LE PASSIF</button>
+              </form>
+
+              <!-- Liability List -->
+              <div id="liability-list" style="margin-top: 16px;">
+                <!-- Rendered by LiabilityManager -->
+              </div>
+            </div>
+          </div>
+
+
+          <div class="hw-card full-width">
             <span class="label-caps">DISTRIBUTION 4PILLIERS</span>
             <div class="camembert-wrapper">
               <div class="camembert-container">
@@ -84,17 +418,30 @@
           </div>
 
           <div class="hw-card">
-             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <span class="label-caps">10YR GROWTH SIMULATION</span>
-                <div class="label-caps" style="color: var(--color-primary);"><span id="apr-value">12</span>% APR</div>
+            <span class="label-caps">RÉPARTITION PAR PLATEFORME</span>
+            <div class="camembert-wrapper">
+              <div class="camembert-container">
+                <canvas id="platformPieChart"></canvas>
+              </div>
+              <div id="platform-legend" class="custom-legend" style="grid-template-columns: 1fr;">
+                <!-- Legend items generated by TS -->
+              </div>
+            </div>
+          </div>
+
+          <div class="hw-card">
+             <div style="margin-bottom: 20px;">
+                <span class="label-caps">ÉVOLUTION DU PATRIMOINE</span>
              </div>
-             <input type="range" id="apr-slider" min="1" max="30" value="12" style="width: 100%; margin-bottom: 20px;">
              <div class="chart-box-large">
-               <canvas id="forecastChart"></canvas>
+               <canvas id="wealthChart"></canvas>
+               <div id="wealth-chart-empty" style="display: none; padding: 40px 20px; text-align: center; color: var(--color-muted, #64748B); font-size: 0.85rem;">
+                 Enregistrez au moins 2 allocations pour voir l'évolution.
+               </div>
              </div>
           </div>
 
-          <div class="hw-list" id="wealth-history-list">
+          <div class="hw-list full-width" id="wealth-history-list">
             <!-- Journal Entries -->
           </div>
         </div>
@@ -106,6 +453,9 @@
           <div class="sub-tab-bar">
             <button type="button" class="sub-tab-btn active" data-subtab="expenses">📅 SEMAINE</button>
             <button type="button" class="sub-tab-btn" data-subtab="subscriptions">🔄 ABONNEMENTS</button>
+            <button id="export-expenses-csv" class="hw-btn-icon-subtle" aria-label="Exporter dépenses en CSV" title="Exporter CSV" style="margin-left: auto;">
+              📥
+            </button>
           </div>
 
           <!-- === Sub-View: Expenses (existing) === -->
@@ -129,10 +479,12 @@
             <form id="expense-form" style="margin-top: 12px;">
               <div style="display: flex; gap: 10px;">
                 <div style="flex: 1;">
-                  <input type="number" id="expense-amount" class="hw-input-massive" placeholder="0,00" step="0.01" style="font-size: 1.25rem;" required>
+                  <label for="expense-amount" class="u-visually-hidden">Montant</label>
+                  <input type="number" id="expense-amount" class="hw-input-massive" placeholder="0,00" step="0.01" style="font-size: 1.25rem;" aria-label="Montant de la dépense" required>
                 </div>
                 <div style="flex: 1;">
-                  <select id="expense-category" class="hw-input-massive" style="font-size: 0.85rem;" required>
+                  <label for="expense-category" class="u-visually-hidden">Catégorie</label>
+                  <select id="expense-category" class="hw-input-massive" style="font-size: 0.85rem;" aria-label="Catégorie de la dépense" required>
                     <option value="logement">🏠 Logement</option>
                     <option value="courses">🛒 Courses</option>
                     <option value="transport">🚗 Transport</option>
@@ -144,7 +496,8 @@
                   </select>
                 </div>
               </div>
-              <input type="text" id="expense-label" class="hw-input-massive" placeholder="Description..." style="font-size: 1rem; margin-top: 10px;" required>
+              <label for="expense-label" class="u-visually-hidden">Description</label>
+              <input type="text" id="expense-label" class="hw-input-massive" placeholder="Description..." style="font-size: 1rem; margin-top: 10px;" aria-label="Description de la dépense" required>
               <button type="submit" class="btn-primary u-mt-lg">AJOUTER</button>
             </form>
           </div>
@@ -194,13 +547,16 @@
           <div class="hw-card">
             <span class="label-caps">NOUVEL ABONNEMENT</span>
             <form id="sub-form" style="margin-top: 12px;">
-              <input type="text" id="sub-label" class="hw-input-massive" placeholder="Netflix, Spotify..." style="font-size: 1rem;" required>
+              <label for="sub-label" class="u-visually-hidden">Nom de l'abonnement</label>
+              <input type="text" id="sub-label" class="hw-input-massive" placeholder="Netflix, Spotify..." style="font-size: 1rem;" aria-label="Nom de l'abonnement" required>
               <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <div style="flex: 1;">
-                  <input type="number" id="sub-amount" class="hw-input-massive" placeholder="€/mois" step="0.01" style="font-size: 1.25rem;" required>
+                  <label for="sub-amount" class="u-visually-hidden">Prix mensuel</label>
+                  <input type="number" id="sub-amount" class="hw-input-massive" placeholder="€/mois" step="0.01" style="font-size: 1.25rem;" aria-label="Prix mensuel de l'abonnement" required>
                 </div>
                 <div style="flex: 1;">
-                  <select id="sub-category" class="hw-input-massive" style="font-size: 0.85rem;" required>
+                  <label for="sub-category" class="u-visually-hidden">Catégorie d'abonnement</label>
+                  <select id="sub-category" class="hw-input-massive" style="font-size: 0.85rem;" aria-label="Catégorie de l'abonnement" required>
                     <option value="abonnements">📱 Abonnements</option>
                     <option value="logement">🏠 Logement</option>
                     <option value="courses">🛒 Courses</option>
@@ -226,43 +582,193 @@
 
         </div>
 
+        <!-- View: Monte Carlo Simulations -->
+        <div id="view-simulations" class="view-section" style="display: none;">
+
+          <div class="hw-flex-between" style="margin-bottom: 20px;">
+            <span class="label-caps">🎲 MOTEUR MONTE CARLO</span>
+          </div>
+
+          <!-- Parameters Card -->
+          <div class="hw-card glass-card">
+            <span class="label-caps" style="color: var(--color-primary);">PARAMÈTRES DE SIMULATION</span>
+            <div class="mc-params-grid">
+              <div>
+                <label for="mc-capital" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">CAPITAL INITIAL ($)</label>
+                <input type="number" id="mc-capital" class="hw-input" value="1000" step="any" min="0" aria-label="Capital initial pour simulation Monte Carlo">
+              </div>
+              <div>
+                <label for="mc-horizon" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">HORIZON</label>
+                <select id="mc-horizon" class="hw-input" aria-label="Horizon de simulation">
+                  <option value="3">3 MOIS</option>
+                  <option value="6">6 MOIS</option>
+                  <option value="12" selected>1 AN</option>
+                  <option value="36">3 ANS</option>
+                  <option value="60">5 ANS</option>
+                </select>
+              </div>
+              <div>
+                <label for="mc-sims" class="label-caps hw-text-muted-compact" style="margin-bottom: 4px; display: block;">SIMULATIONS</label>
+                <select id="mc-sims" class="hw-input" aria-label="Nombre de simulations">
+                  <option value="1000">1 000</option>
+                  <option value="5000" selected>5 000</option>
+                  <option value="10000">10 000</option>
+                </select>
+              </div>
+            </div>
+            <button type="button" id="mc-run-btn" class="btn-primary u-mt-md" style="width: 100%;">
+              🚀 LANCER LA SIMULATION
+            </button>
+          </div>
+
+          <!-- Stats Source Card -->
+          <div class="hw-card" id="mc-stats-card" style="display: none;">
+            <span class="label-caps">📊 DISTRIBUTION DES RETOURS</span>
+            <div class="widget-strip" style="grid-template-columns: 1fr 1fr 1fr; margin-top: 12px;">
+              <div class="widget-card">
+                <div class="widget-label">TRADES ANALYSÉS</div>
+                <div class="widget-value" id="mc-stat-trades">—</div>
+              </div>
+              <div class="widget-card">
+                <div class="widget-label">RETOUR MOYEN</div>
+                <div class="widget-value" id="mc-stat-avg">—</div>
+              </div>
+              <div class="widget-card">
+                <div class="widget-label">ÉCART-TYPE</div>
+                <div class="widget-value" id="mc-stat-std">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fan Chart -->
+          <div class="hw-card full-width" id="mc-chart-card" style="display: none;">
+            <span class="label-caps">PROJECTION DE CAPITAL — INTERVALLES DE CONFIANCE</span>
+            <div class="chart-box-large" style="margin-top: 12px;">
+              <canvas id="mcChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Results Cards -->
+          <div id="mc-results-card" style="display: none;">
+            <div class="widget-strip" style="grid-template-columns: 1fr 1fr;">
+              <div class="widget-card">
+                <div class="widget-label">MÉDIANE (P50)</div>
+                <div class="widget-value" id="mc-res-median">—</div>
+              </div>
+              <div class="widget-card">
+                <div class="widget-label">PROBABILITÉ DE GAIN</div>
+                <div class="widget-value" id="mc-res-winrate">—</div>
+              </div>
+            </div>
+            <div class="widget-strip" style="grid-template-columns: 1fr 1fr 1fr;">
+              <div class="widget-card">
+                <div class="widget-label">PESSIMISTE (P10)</div>
+                <div class="widget-value pnl-neg" id="mc-res-p10">—</div>
+              </div>
+              <div class="widget-card">
+                <div class="widget-label">MOYENNE</div>
+                <div class="widget-value" id="mc-res-mean">—</div>
+              </div>
+              <div class="widget-card">
+                <div class="widget-label">OPTIMISTE (P90)</div>
+                <div class="widget-value pnl-pos" id="mc-res-p90">—</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State -->
+          <div id="mc-empty-state" class="hw-card" style="text-align: center; padding: 40px 20px;">
+            <div style="font-size: 2.5rem; margin-bottom: 12px;">🎲</div>
+            <div class="label-caps" style="color: var(--color-muted);">Synchronisez vos trades BingX puis lancez une simulation pour projeter la croissance de votre capital.</div>
+          </div>
+
+        </div>
+
         <!-- View: Technical Config -->
         <div id="view-config" class="view-section" style="display: none;">
           <div class="hw-card">
             <span class="label-caps">SYNCHRONISATION DU COFFRE</span>
-            <form id="api-form" style="margin-top: 20px;">
-              <div class="hw-input-group" style="margin: 20px 0;">
-                <label class="label-caps">CLÉ API BINGX</label>
-                <input type="text" id="api-key" class="hw-input-massive" placeholder="PRO-001-..." style="font-size: 1.25rem;">
+            <form id="api-form" class="hw-config-form">
+              <div class="hw-input-group hw-input-spacer">
+                <label for="api-key" class="label-caps">CLÉ API BINGX</label>
+                <input type="text" id="api-key" class="hw-input-massive hw-input-massive-text" placeholder="PRO-001-..." aria-label="Clé API BingX">
               </div>
-              <div class="hw-input-group" style="margin: 20px 0;">
-                <label class="label-caps">SECRET SÉCURISÉ</label>
-                <input type="password" id="api-secret" class="hw-input-massive" placeholder="••••••••" style="font-size: 1.25rem;">
+              <div class="hw-input-group hw-input-spacer">
+                <label for="api-secret" class="label-caps">SECRET SÉCURISÉ</label>
+                <input type="password" id="api-secret" class="hw-input-massive hw-input-massive-text" placeholder="••••••••" aria-label="Secret API sécurisé">
               </div>
-              <div class="hw-input-group" style="margin: 20px 0;">
-                <label class="label-caps">MOT DE PASSE DU COFFRE (8+ caractères)</label>
-                <input type="password" id="vault-password" class="hw-input-massive" placeholder="Mot de passe de chiffrement..." style="font-size: 1.25rem;" minlength="8" required>
+              <div class="hw-input-group hw-input-spacer">
+                <label for="vault-password" class="label-caps">MOT DE PASSE DU COFFRE (8+ caractères)</label>
+                <input type="password" id="vault-password" class="hw-input-massive hw-input-massive-text" placeholder="Mot de passe de chiffrement..." minlength="8" aria-label="Mot de passe du coffre de chiffrement" required>
               </div>
               <button type="submit" class="btn-primary">LIER LE COFFRE</button>
             </form>
           </div>
+
+          <!-- 🔐 Vault V2: Coffre-Fort Management -->
+          <div class="hw-card glass-card vault-panel">
+            <span class="label-caps">🔐 COFFRE-FORT AES-256</span>
+
+            <div class="vault-status-row">
+              <span id="vault-status-indicator" class="vault-indicator vault-indicator--off">●</span>
+              <span id="vault-status-text" class="vault-status-label">Non configuré</span>
+            </div>
+
+            <div class="vault-actions">
+              <div class="hw-input-group hw-input-spacer">
+                <label for="vault-password-v2" class="label-caps">MOT DE PASSE DU COFFRE</label>
+                <input type="password" id="vault-password-v2" class="hw-input-massive hw-input-massive-text" placeholder="8+ caractères..." minlength="8" aria-label="Mot de passe du coffre-fort V2">
+              </div>
+
+              <div class="vault-btn-group">
+                <button type="button" id="vault-configure-btn" class="btn-primary vault-btn">
+                  🔑 CONFIGURER LE COFFRE
+                </button>
+                <button type="button" id="vault-export-btn" class="btn-primary vault-btn">
+                  📤 EXPORT CHIFFRÉ
+                </button>
+                <label class="btn-primary vault-btn vault-import-label" for="vault-import-file">
+                  📥 IMPORT CHIFFRÉ
+                </label>
+                <input type="file" id="vault-import-file" accept=".vault,.json" class="u-visually-hidden" aria-label="Importer un fichier coffre-fort chiffré">
+              </div>
+
+              <div class="vault-sync-section u-mt-lg">
+                <span class="label-caps" style="color: var(--color-primary); margin-bottom: 12px; display: block;">☁️ SYNCHRONISATION CLOUD E2EE</span>
+                <div id="vault-last-sync" class="label-caps hw-text-tiny" style="margin-bottom: 12px; color: var(--color-muted);">Dernière synchro : Jamais</div>
+                <div class="vault-btn-group">
+                  <button type="button" id="vault-sync-push-btn" class="btn-primary vault-btn" style="background: var(--color-primary-dark);">
+                    🔼 PUSH (SAUVEGARDER)
+                  </button>
+                  <button type="button" id="vault-sync-pull-btn" class="btn-primary vault-btn" style="background: var(--color-slate-700);">
+                    🔽 PULL (RESTAURER)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </main>
 
       <!-- Institutional Bottom Navigation -->
       <nav class="heavy-bottom-nav">
-        <a href="#" id="nav-dash" class="nav-item active">
+        <a href="#" id="nav-dash" class="nav-item active" data-view="dashboard">
           <i>📊</i>
           <span>PORTEFEUILLE</span>
         </a>
-        <a href="#" id="nav-wealth" class="nav-item">
+        <a href="#" id="nav-wealth" class="nav-item" data-view="wealth">
           <i>💎</i>
           <span>PATRIMOINE</span>
         </a>
-        <a href="#" id="nav-lab" class="nav-item">
+        <a href="#" id="nav-lab" class="nav-item" data-view="lab">
           <i>💸</i>
           <span>DÉPENSES</span>
+        </a>
+        <a href="#" id="nav-sim" class="nav-item" data-view="simulations">
+          <i>🎲</i>
+          <span>SIMULATIONS</span>
         </a>
       </nav>
 
@@ -279,7 +785,7 @@
             <span id="tm-pair" class="trade-sheet-pair">BTC/USDT</span>
             <span id="tm-badge" class="trade-sheet-badge">LONG 20X</span>
           </div>
-          <button class="btn-icon" id="trade-modal-close" style="width:36px;height:36px;font-size:1rem;">✕</button>
+          <button class="btn-icon hw-btn-close-sm" id="trade-modal-close">✕</button>
         </div>
 
         <div class="trade-detail-grid">

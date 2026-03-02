@@ -12,12 +12,20 @@ export interface Allocation {
   label: string;         // ex: "Février 2026"
 }
 
+export interface Platform {
+  id?: number;           // autoIncrement PK
+  name: string;
+  annual_yield: number;  // percentage, e.g. 5.5 for 5.5%
+  type: 'fixed' | 'dynamic'; // 'fixed' = has annual yield, 'dynamic' = no fixed yield (e.g. Bitcoin)
+}
+
 export interface AllocationItem {
   id?: number;           // autoIncrement PK
   allocation_id: number; // FK → Allocation.id
   category: 'besoins' | 'investissement' | 'securite' | 'loisirs';
   amount: number;
   percentage: number;
+  platform_id?: number;  // FK → Platform.id (optional, mainly for 'investissement')
 }
 
 // ─── Trades ───────────────────────────────────────────────
@@ -25,7 +33,7 @@ export interface AllocationItem {
 export interface Trade {
   id: string;
   pair: string;
-  type: 'LONG' | 'SHORT';
+  type: 'LONG' | 'SHORT' | 'FUNDING';
   entryPrice: number;
   exitPrice?: number;
   size: number;
@@ -83,6 +91,24 @@ export interface Subscription {
   category: ExpenseCategory;
   startDate: string;     // "2026-02" (YYYY-MM)
   active: number;        // 1 = actif, 0 = résilié (number for IDB indexing)
+}
+
+// ─── Passifs (Liabilities) ─────────────────────────────────
+
+export type LiabilityType = 'credit_immo' | 'pret_conso' | 'dette' | 'autre';
+
+export interface Liability {
+  id?: number;              // autoIncrement PK
+  label: string;            // ex: "Crédit Maison", "Prêt Auto"
+  type: LiabilityType;
+  initialAmount: number;    // montant initial emprunté
+  remainingAmount: number;  // solde restant dû
+  monthlyPayment: number;   // mensualité
+  interestRate: number;     // taux annuel (ex: 2.5 = 2.5%)
+  startDate: string;        // "2024-03" (YYYY-MM)
+  endDate?: string;         // "2049-03" (YYYY-MM) — optionnel
+  active: number;           // 1 = en cours, 0 = soldé (number for IDB indexing)
+  timestamp: number;        // epoch ms — creation date
 }
 
 // ─── Configuration ────────────────────────────────────────

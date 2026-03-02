@@ -1,0 +1,13 @@
+148-230-114-4.nip.io {
+    encode gzip
+
+    handle /api/* {
+        reverse_proxy http://bingx-api:3001
+    }
+
+    handle {
+        root * /usr/share/caddy
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+}

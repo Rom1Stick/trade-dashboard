@@ -97,16 +97,66 @@ export class SafeVault {
 
   static purgeVault() {
     console.warn("[Protocol Zero] PANIC MODE: Purging all sensitive credentials.");
-    const vaultPatterns = ['BINGX_', 'VAULT_', 'API_KEY', 'API_SECRET'];
+    const vaultPatterns = ['BINGX_', 'VAULT_', 'API_KEY', 'API_SECRET', this.VAULT_HASH_KEY];
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && vaultPatterns.some(p => key.toUpperCase().includes(p))) {
+      if (key && vaultPatterns.some(p => key.toUpperCase().includes(p.toUpperCase()))) {
         keysToRemove.push(key);
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
     this.failedAttempts = 0;
     console.warn(`[Protocol Zero] ${keysToRemove.length} clé(s) purgée(s).`);
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // V2 — Vault Management & JSON Encryption
+  // ═══════════════════════════════════════════════════════
+
+  private static VAULT_HASH_KEY = 'hw_vault_verification_hash';
+
+  /**
+   * Chiffre un objet JSON complet (ex: dump IndexedDB).
+   * Retourne un string base64 contenant le ciphertext.
+   */
+  static async encryptJSON(data: object, password: string): Promise<string> {
+    const json = JSON.stringify(data);
+    return this.encrypt(json, password);
+  }
+
+  /**
+   * Déchiffre un ciphertext et retourne l'objet JSON.
+   */
+  static async decryptJSON<T = unknown>(cipher: string, password: string): Promise<T> {
+    const json = await this.decrypt(cipher, password);
+    return JSON.parse(json) as T;
+  }
+
+  /**
+   * Stocke un hash SHA-256 du mot de passe pour vérification future.
+   * Ne stocke PAS le mot de passe en clair.
+   */
+  static async setVaultPassword(password: string): Promise<void> {
+    const enc = new TextEncoder();
+    const hashBuffer = await crypto.subtle.digest('SHA-256', enc.encode(password));
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem(this.VAULT_HASH_KEY, hashHex);
+    console.log('[Protocol Zero] Vault password hash stored successfully.');
+  }
+
+  /**
+   * Vérifie si le coffre a un mot de passe configuré.
+   */
+  static isVaultConfigured(): boolean {
+    return !!localStorage.getItem(this.VAULT_HASH_KEY);
+  }
+
+  /**
+   * Reset le compteur de tentatives échouées (après succès).
+   */
+  static resetFailedAttempts(): void {
+    this.failedAttempts = 0;
   }
 }

@@ -16,13 +16,13 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Serve
-FROM nginx:stable-alpine
+FROM caddy:2-alpine
 
-# Copy built assets to Nginx
-COPY --from=build /app/dist /usr/share/nginx/html
+# Copy built assets to Caddy
+COPY --from=build /app/dist /usr/share/caddy
 
-# Expose port
-EXPOSE 80
+# Expose HTTP and HTTPS ports
+EXPOSE 80 443
 
-# Start Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Start Caddy (handled automatically by the base image if given a Caddyfile)
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

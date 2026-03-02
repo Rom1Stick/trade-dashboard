@@ -4,6 +4,33 @@ services:
   trade-grid:
     build: .
     ports:
-      - "8084:80"
+      - "80:80"
+      - "443:443"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     restart: always
     container_name: trade-grid-prod
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - bingx-api
+
+  bingx-api:
+    build:
+      context: ./api
+      dockerfile: ../Dockerfile.api
+    restart: always
+    container_name: bingx-api-proxy
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+volumes:
+  caddy_data:
+  caddy_config:

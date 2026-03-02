@@ -1,4 +1,5 @@
-import type { Trade, TradeFee, Allocation, AllocationItem, AppConfig, PortfolioSnapshot, Expense, Subscription } from './models';
+import type { Trade, TradeFee, Allocation, AllocationItem, Platform, AppConfig, PortfolioSnapshot, Expense, Subscription, Liability } from './models';
+import { SafeVault } from './vault';
 
 /**
  * PersistenceEngine [3FN]
@@ -7,17 +8,19 @@ import type { Trade, TradeFee, Allocation, AllocationItem, AppConfig, PortfolioS
  */
 export class PersistenceEngine {
   private static DB_NAME = 'GridVault_DB';
-  private static DB_VERSION = 5;
+  private static DB_VERSION = 8;
   private static dbInstance: IDBDatabase | null = null;
 
   // Store names
   static readonly STORE_ALLOCATIONS = 'allocations';
   static readonly STORE_ALLOCATION_ITEMS = 'allocation_items';
+  static readonly STORE_PLATFORMS = 'platforms';
   static readonly STORE_TRADES = 'trades';
   static readonly STORE_TRADE_FEES = 'trade_fees';
   static readonly STORE_SNAPSHOTS = 'snapshots';
   static readonly STORE_EXPENSES = 'expenses';
   static readonly STORE_SUBSCRIPTIONS = 'subscriptions';
+  static readonly STORE_LIABILITIES = 'liabilities';
   static readonly STORE_CONFIG = 'app_config';
 
   static async init(): Promise<IDBDatabase> {
@@ -26,76 +29,86 @@ export class PersistenceEngine {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
+      // DB-03: Versioned migration handler (fall-through pattern)
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
+        const oldVersion = event.oldVersion;
 
-        // ─── Allocations (patrimoine mensuel) ────────────
-        if (!db.objectStoreNames.contains(this.STORE_ALLOCATIONS)) {
+        // Each block runs only when upgrading FROM an older version.
+        // Fall-through ensures all intermediate migrations execute.
+
+        if (oldVersion < 1) {
+          // V1: Allocations + Allocation Items (Patrimoine)
           const allocStore = db.createObjectStore(this.STORE_ALLOCATIONS, {
-            keyPath: 'id',
-            autoIncrement: true
+            keyPath: 'id', autoIncrement: true
           });
           allocStore.createIndex('by_timestamp', 'timestamp', { unique: false });
-        }
 
-        // ─── Allocation Items (répartition par catégorie) ─
-        if (!db.objectStoreNames.contains(this.STORE_ALLOCATION_ITEMS)) {
           const itemStore = db.createObjectStore(this.STORE_ALLOCATION_ITEMS, {
-            keyPath: 'id',
-            autoIncrement: true
+            keyPath: 'id', autoIncrement: true
           });
           itemStore.createIndex('by_allocation_id', 'allocation_id', { unique: false });
         }
 
-        // ─── Trades ──────────────────────────────────────
-        if (!db.objectStoreNames.contains(this.STORE_TRADES)) {
+        if (oldVersion < 2) {
+          // V2: Trades + Trade Fees
           const tradeStore = db.createObjectStore(this.STORE_TRADES, { keyPath: 'id' });
           tradeStore.createIndex('by_timestamp', 'timestamp', { unique: false });
           tradeStore.createIndex('by_status', 'status', { unique: false });
           tradeStore.createIndex('by_pair', 'pair', { unique: false });
-        }
 
-        // ─── Trade Fees ──────────────────────────────────
-        if (!db.objectStoreNames.contains(this.STORE_TRADE_FEES)) {
           const feeStore = db.createObjectStore(this.STORE_TRADE_FEES, {
-            keyPath: 'id',
-            autoIncrement: true
+            keyPath: 'id', autoIncrement: true
           });
           feeStore.createIndex('by_trade_id', 'trade_id', { unique: false });
         }
 
-        // ─── Snapshots ───────────────────────────────────
-        if (!db.objectStoreNames.contains(this.STORE_SNAPSHOTS)) {
+        if (oldVersion < 3) {
+          // V3: Snapshots + App Config
           const snapStore = db.createObjectStore(this.STORE_SNAPSHOTS, {
-            keyPath: 'id',
-            autoIncrement: true
+            keyPath: 'id', autoIncrement: true
           });
           snapStore.createIndex('by_timestamp', 'timestamp', { unique: false });
+          db.createObjectStore(this.STORE_CONFIG, { keyPath: 'key' });
         }
 
-        // ─── Expenses (Finari-style tracker) ─────────────
-        if (!db.objectStoreNames.contains(this.STORE_EXPENSES)) {
+        if (oldVersion < 4) {
+          // V4: Expenses (Finari-style)
           const expStore = db.createObjectStore(this.STORE_EXPENSES, {
-            keyPath: 'id',
-            autoIncrement: true
+            keyPath: 'id', autoIncrement: true
           });
           expStore.createIndex('by_week_key', 'week_key', { unique: false });
           expStore.createIndex('by_category', 'category', { unique: false });
           expStore.createIndex('by_timestamp', 'timestamp', { unique: false });
         }
 
-        // ─── Subscriptions (Abonnements récurrents) ────────
-        if (!db.objectStoreNames.contains(this.STORE_SUBSCRIPTIONS)) {
+        if (oldVersion < 5) {
+          // V5: Subscriptions (Abonnements récurrents)
           const subStore = db.createObjectStore(this.STORE_SUBSCRIPTIONS, {
-            keyPath: 'id',
-            autoIncrement: true
+            keyPath: 'id', autoIncrement: true
           });
           subStore.createIndex('by_active', 'active', { unique: false });
         }
+        if (oldVersion < 6) {
+          // V6: Platforms (Diversification)
+          db.createObjectStore(this.STORE_PLATFORMS, {
+            keyPath: 'id', autoIncrement: true
+          });
+        }
 
-        // ─── App Config ──────────────────────────────────
-        if (!db.objectStoreNames.contains(this.STORE_CONFIG)) {
-          db.createObjectStore(this.STORE_CONFIG, { keyPath: 'key' });
+        if (oldVersion < 7) {
+          // V7: Supporting dynamic platforms (Bitcoin)
+          // No structural changes, but we ensure data compliance
+        }
+
+        if (oldVersion < 8) {
+          // V8: Liabilities (Passifs — dettes, crédits, prêts)
+          const libStore = db.createObjectStore(this.STORE_LIABILITIES, {
+            keyPath: 'id', autoIncrement: true
+          });
+          libStore.createIndex('by_active', 'active', { unique: false });
+          libStore.createIndex('by_type', 'type', { unique: false });
+          libStore.createIndex('by_timestamp', 'timestamp', { unique: false });
         }
       };
 
@@ -135,9 +148,10 @@ export class PersistenceEngine {
         items.forEach(item => {
           itemStore.add({ ...item, allocation_id: allocId });
         });
-        resolve(allocId);
       };
 
+      // DB-02: resolve AFTER all writes (parent + children) are committed
+      tx.oncomplete = () => resolve(req.result as number);
       tx.onerror = () => reject(tx.error);
     });
   }
@@ -209,6 +223,97 @@ export class PersistenceEngine {
     });
   }
 
+  // ─── Platforms CRUD ─────────────────────────────────────
+
+  static async savePlatform(platform: Omit<Platform, 'id'>): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_PLATFORMS, 'readwrite');
+      const store = tx.objectStore(this.STORE_PLATFORMS);
+      const req = store.add(platform);
+      req.onsuccess = () => resolve(req.result as number);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async getPlatforms(): Promise<Platform[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_PLATFORMS, 'readonly');
+      const store = tx.objectStore(this.STORE_PLATFORMS);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async updatePlatform(platform: Platform): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_PLATFORMS, 'readwrite');
+      const store = tx.objectStore(this.STORE_PLATFORMS);
+      const req = store.put(platform);
+      req.onsuccess = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async deletePlatform(id: number): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_PLATFORMS, 'readwrite');
+      const store = tx.objectStore(this.STORE_PLATFORMS);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /**
+   * Mettre à jour une allocation existante (montant + items recalculés).
+   */
+  static async updateAllocation(allocId: number, newTotal: number, items: Omit<AllocationItem, 'id' | 'allocation_id'>[]): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([this.STORE_ALLOCATIONS, this.STORE_ALLOCATION_ITEMS], 'readwrite');
+      const allocStore = tx.objectStore(this.STORE_ALLOCATIONS);
+      const itemStore = tx.objectStore(this.STORE_ALLOCATION_ITEMS);
+      const itemIndex = itemStore.index('by_allocation_id');
+
+      // 1. Get the existing allocation to preserve timestamp/label
+      const getReq = allocStore.get(allocId);
+      getReq.onsuccess = () => {
+        const existing = getReq.result;
+        if (!existing) {
+          reject(new Error(`Allocation #${allocId} not found`));
+          return;
+        }
+
+        // 2. Update the total
+        existing.total = newTotal;
+        allocStore.put(existing);
+
+        // 3. Delete old items
+        const cursorReq = itemIndex.openCursor(IDBKeyRange.only(allocId));
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (cursor) {
+            cursor.delete();
+            cursor.continue();
+          }
+        };
+
+        // 4. Insert new items (after cursor finishes, they go into same tx)
+        items.forEach(item => {
+          itemStore.add({ ...item, allocation_id: allocId });
+        });
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
   // ─── Trades CRUD ───────────────────────────────────────
 
   static async saveTrade(trade: Trade, fees: Omit<TradeFee, 'id'>[]): Promise<void> {
@@ -246,11 +351,12 @@ export class PersistenceEngine {
 
   static async getTrades(): Promise<Trade[]> {
     const db = await this.init();
-    const tx = db.transaction(this.STORE_TRADES, 'readonly');
-    const store = tx.objectStore(this.STORE_TRADES);
-    const request = store.getAll();
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_TRADES, 'readonly');
+      const store = tx.objectStore(this.STORE_TRADES);
+      const request = store.getAll();
       request.onsuccess = () => resolve(request.result);
+      tx.onerror = () => reject(tx.error);
     });
   }
 
@@ -372,6 +478,26 @@ export class PersistenceEngine {
     });
   }
 
+  static async clearTrades(): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([this.STORE_TRADES, this.STORE_TRADE_FEES], 'readwrite');
+      tx.objectStore(this.STORE_TRADES).clear();
+      tx.objectStore(this.STORE_TRADE_FEES).clear();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async purgeOldTrades(cutoff: number): Promise<void> {
+    const trades = await this.getTrades();
+    const toDelete = trades.filter(t => t.timestamp < cutoff);
+
+    for (const t of toDelete) {
+      await this.deleteTrade(t.id);
+    }
+  }
+
   // ─── Snapshots CRUD ────────────────────────────────────
 
   static async saveSnapshot(snapshot: Omit<PortfolioSnapshot, 'id'>): Promise<number> {
@@ -443,6 +569,7 @@ export class PersistenceEngine {
   // ─── Expenses CRUD (Finari-style) ─────────────────────
 
   static async saveExpense(expense: Omit<Expense, 'id'>): Promise<number> {
+    this.validateExpense(expense);
     const db = await this.init();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(this.STORE_EXPENSES, 'readwrite');
@@ -511,6 +638,7 @@ export class PersistenceEngine {
   // ─── Subscriptions (Abonnements) ─────────────────────────
 
   static async saveSubscription(sub: Omit<Subscription, 'id'>): Promise<number> {
+    this.validateSubscription(sub);
     const db = await this.init();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(this.STORE_SUBSCRIPTIONS, 'readwrite');
@@ -591,13 +719,8 @@ export class PersistenceEngine {
     // Calculer la première semaine du mois (pour le week_key)
     const [year, month] = monthKey.split('-').map(Number);
     const firstDay = new Date(year, month - 1, 1);
-    const dayOfWeek = firstDay.getDay() || 7; // 1=Lundi
-    const monday = new Date(firstDay);
-    monday.setDate(firstDay.getDate() - dayOfWeek + 1);
-    // ISO week number
-    const janFirst = new Date(monday.getFullYear(), 0, 1);
-    const weekNum = Math.ceil(((monday.getTime() - janFirst.getTime()) / 86400000 + janFirst.getDay() + 1) / 7);
-    const weekKey = `${monday.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+    // DB-01: Use proper ISO 8601 week calculation
+    const weekKey = PersistenceEngine.getISOWeekKey(firstDay);
 
     // Créer les dépenses
     const tx = db.transaction([this.STORE_EXPENSES, this.STORE_CONFIG], 'readwrite');
@@ -632,7 +755,11 @@ export class PersistenceEngine {
 
   // ─── Maintenance ───────────────────────────────────────
 
-  static async clearAll(): Promise<void> {
+  // DB-05: Require explicit confirmation to prevent accidental data loss
+  static async clearAll(confirm?: 'CONFIRM_PURGE'): Promise<void> {
+    if (confirm !== 'CONFIRM_PURGE') {
+      throw new Error('[PersistenceEngine] clearAll() requires explicit confirmation: clearAll("CONFIRM_PURGE")');
+    }
     const db = await this.init();
     const storeNames = [
       this.STORE_ALLOCATIONS,
@@ -654,5 +781,231 @@ export class PersistenceEngine {
       tx.onerror = () => reject(tx.error);
     });
   }
-}
 
+  // ─── DB-06: Export / Import ────────────────────────────
+
+  static async exportAll(): Promise<string> {
+    const db = await this.init();
+    const storeNames = Array.from(db.objectStoreNames);
+    const dump: Record<string, unknown[]> = {};
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeNames, 'readonly');
+      let completed = 0;
+      storeNames.forEach(name => {
+        const req = tx.objectStore(name).getAll();
+        req.onsuccess = () => {
+          dump[name] = req.result;
+          completed++;
+          if (completed === storeNames.length) {
+            resolve(JSON.stringify({
+              version: PersistenceEngine.DB_VERSION,
+              exportedAt: new Date().toISOString(),
+              stores: dump
+            }, null, 2));
+          }
+        };
+      });
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async importAll(json: string): Promise<void> {
+    let data: any;
+    try {
+      data = JSON.parse(json);
+    } catch (e) {
+      throw new Error("Format de fichier invalide (JSON corrompu).");
+    }
+
+    if (!data.stores || typeof data.stores !== 'object') {
+      throw new Error("Structure de sauvegarde invalide (clé 'stores' manquante).");
+    }
+
+    const db = await this.init();
+    const allStoreNames = Array.from(db.objectStoreNames);
+    const importStoreNames = Object.keys(data.stores).filter(n => allStoreNames.includes(n));
+
+    if (importStoreNames.length === 0) {
+      throw new Error("Sauvegarde vide ou incompatible avec cette version de l'application.");
+    }
+
+    return new Promise((resolve, reject) => {
+      // Create a single transaction for all known stores
+      const tx = db.transaction(allStoreNames, 'readwrite');
+
+      tx.oncomplete = () => {
+        console.log("[Persistence] Importation réussie et validée.");
+        resolve();
+      };
+
+      tx.onerror = () => {
+        console.error("[Persistence] Transaction échouée. Rollback automatique.", tx.error);
+        reject(new Error("Échec critique de l'import : la base de données n'a pas été modifiée."));
+      };
+
+      // Wipe everything first (atomic inside the transaction)
+      allStoreNames.forEach(name => {
+        const store = tx.objectStore(name);
+        store.clear();
+      });
+
+      // Inject data from backup
+      importStoreNames.forEach(name => {
+        const store = tx.objectStore(name);
+        const records = data.stores[name];
+        if (Array.isArray(records)) {
+          records.forEach((record: any) => {
+            try {
+              store.put(record);
+            } catch (e) {
+              console.error(`[Persistence] Erreur d'injection dans '${name}':`, e);
+              tx.abort();
+            }
+          });
+        }
+      });
+    });
+  }
+
+  // ─── DB-07: Input Validation ──────────────────────────
+
+  static validateExpense(expense: Omit<Expense, 'id'>): void {
+    if (!expense.amount || expense.amount <= 0) throw new Error('Expense amount must be positive');
+    if (!expense.label?.trim()) throw new Error('Expense label is required');
+    if (!expense.week_key?.match(/^\d{4}-W\d{2}$/)) throw new Error(`Invalid week_key format: "${expense.week_key}"`);
+  }
+
+  static validateSubscription(sub: Omit<Subscription, 'id'>): void {
+    if (!sub.label?.trim()) throw new Error('Subscription label is required');
+    if (!sub.amount || sub.amount <= 0) throw new Error('Subscription amount must be positive');
+    if (!sub.startDate?.match(/^\d{4}-\d{2}$/)) throw new Error(`Invalid startDate format: "${sub.startDate}"`);
+  }
+
+  // ─── Utilities ─────────────────────────────────────────
+
+  /**
+   * DB-01: ISO 8601 week key calculation.
+   * Correctly handles year boundaries (e.g. Dec 29-31 → W01 of next year).
+   */
+  private static getISOWeekKey(date: Date): string {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    // Set to nearest Thursday: current date + 4 - current day number (Monday=1, Sunday=7)
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNum = Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+    return `${d.getUTCFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+  }
+
+  static async seedDefaultPlatforms() {
+    const platforms = await this.getPlatforms();
+    const hasBitcoin = platforms.some(p => p.name.toLowerCase() === 'bitcoin');
+
+    if (!hasBitcoin) {
+      console.log("[L'Architecte] Seeding default platform: Bitcoin");
+      await this.savePlatform({
+        name: 'Bitcoin',
+        annual_yield: 0,
+        type: 'dynamic'
+      });
+    }
+  }
+
+  // ─── Vault V2: Encrypted Export / Import ────────────────
+
+  /**
+   * Exporte toute la base IndexedDB, chiffrée AES-256-GCM.
+   * Retourne un string prêt à être téléchargé en tant que fichier .vault.
+   */
+  static async exportEncrypted(password: string): Promise<string> {
+    const jsonDump = await this.exportAll();
+    const encrypted = await SafeVault.encrypt(jsonDump, password);
+    // Wrap with a header for format detection
+    return JSON.stringify({
+      format: 'hw_vault_v2',
+      created: new Date().toISOString(),
+      payload: encrypted
+    });
+  }
+
+  /**
+   * Importe un fichier .vault chiffré.
+   * Déchiffre puis restaure toute la base IndexedDB.
+   */
+  static async importEncrypted(fileContent: string, password: string): Promise<void> {
+    let wrapper: { format?: string; payload?: string };
+    try {
+      wrapper = JSON.parse(fileContent);
+    } catch {
+      throw new Error('Format de fichier invalide. Fichier .vault corrompu.');
+    }
+
+    if (wrapper.format !== 'hw_vault_v2' || !wrapper.payload) {
+      throw new Error('Ce fichier n\'est pas un export chiffré Heavyweight valide.');
+    }
+
+    const decrypted = await SafeVault.decrypt(wrapper.payload, password);
+    await this.importAll(decrypted);
+    console.log('[Protocol Zero] Import chiffré restauré avec succès.');
+  }
+
+  // ═══════════════════════════════════════════════════════
+  // LIABILITIES (Passifs)
+  // ═══════════════════════════════════════════════════════
+
+  static async saveLiability(liability: Omit<Liability, 'id'>): Promise<number> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_LIABILITIES, 'readwrite');
+      const store = tx.objectStore(this.STORE_LIABILITIES);
+      const req = store.add(liability);
+      req.onsuccess = () => resolve(req.result as number);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  static async getLiabilities(): Promise<Liability[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_LIABILITIES, 'readonly');
+      const store = tx.objectStore(this.STORE_LIABILITIES);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result as Liability[]);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async getActiveLiabilities(): Promise<Liability[]> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_LIABILITIES, 'readonly');
+      const store = tx.objectStore(this.STORE_LIABILITIES);
+      const index = store.index('by_active');
+      const req = index.getAll(1);
+      req.onsuccess = () => resolve(req.result as Liability[]);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  static async updateLiability(liability: Liability): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_LIABILITIES, 'readwrite');
+      const store = tx.objectStore(this.STORE_LIABILITIES);
+      const req = store.put(liability);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  static async deleteLiability(id: number): Promise<void> {
+    const db = await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(this.STORE_LIABILITIES, 'readwrite');
+      const store = tx.objectStore(this.STORE_LIABILITIES);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+}

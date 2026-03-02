@@ -1,6 +1,6 @@
 import { PersistenceEngine } from './persistence';
 import type { Allocation, AllocationItem } from './models';
-import { ALLOCATION_RATIOS } from './wealth_engine';
+
 
 /**
  * WealthHistoryEngine [3FN]
@@ -23,25 +23,36 @@ export class WealthHistoryEngine {
    */
   static async addEntry(total: number, breakdown: {
     besoins: number;
-    investissement: number;
+    investissement: { amount: number; platform_id?: number }[];
     securite: number;
     loisirs: number;
-  }): Promise<number> {
-    const now = new Date();
-    const label = now.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+  }, timestamp?: number): Promise<number> {
+    const dateObj = timestamp ? new Date(timestamp) : new Date();
+    const monthYear = dateObj.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    const time = `${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+    const label = `${monthYear.charAt(0).toUpperCase() + monthYear.slice(1)} (${time})`;
 
     const allocation: Allocation = {
       total,
-      timestamp: now.getTime(),
+      timestamp: dateObj.getTime(),
       label
     };
 
     const items: Omit<AllocationItem, 'id' | 'allocation_id'>[] = [
-      { category: 'besoins', amount: breakdown.besoins, percentage: ALLOCATION_RATIOS.necessities * 100 },
-      { category: 'investissement', amount: breakdown.investissement, percentage: ALLOCATION_RATIOS.investment * 100 },
-      { category: 'securite', amount: breakdown.securite, percentage: ALLOCATION_RATIOS.securityBuffer * 100 },
-      { category: 'loisirs', amount: breakdown.loisirs, percentage: ALLOCATION_RATIOS.lifestyle * 100 }
+      { category: 'besoins', amount: breakdown.besoins, percentage: (breakdown.besoins / total) * 100 },
+      { category: 'securite', amount: breakdown.securite, percentage: (breakdown.securite / total) * 100 },
+      { category: 'loisirs', amount: breakdown.loisirs, percentage: (breakdown.loisirs / total) * 100 }
     ];
+
+    // Add multiple items for investment diversification
+    breakdown.investissement.forEach(inv => {
+      items.push({
+        category: 'investissement',
+        amount: inv.amount,
+        percentage: (inv.amount / total) * 100,
+        platform_id: inv.platform_id
+      });
+    });
 
     return PersistenceEngine.saveAllocation(allocation, items);
   }

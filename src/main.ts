@@ -3,22 +3,26 @@ import { WealthManager } from './wealth_manager';
 import { StreamManager } from './stream_manager';
 import { PersistenceEngine } from './persistence';
 import { SafeVault } from './vault';
+import { BingXConnector } from './bingx_connector';
 import { ExpenseManager } from './expense_manager';
 import { SubscriptionManager } from './subscription_manager';
-import { mockTrades, mockTradeFees } from './mock_data';
+import { CurrencyManager } from './currency_manager';
+import { LiabilityManager } from './liability_manager';
 import { Chart, registerables } from 'chart.js';
-import type { TradeFee } from './models';
-import { escapeHTML } from './sanitize';
+import { VaultPanel } from './vault_panel';
+import { DashboardWidgets } from './dashboard_widgets';
+import { EvolutionChart } from './evolution_chart';
+import { MonteCarloUI } from './monte_carlo_ui';
+import { showToast, triggerHaptic } from './ui_utils';
 
 Chart.register(...registerables);
 
 /**
- * [L'ARCHITECTE] AppEngine — 3FN
- * Noyau opérationnel avec persistence normalisée.
+ * [L'ARCHITECTE] AppEngine — Deconstructed
+ * Orchestrateur noyau réduit à l'infrastructure et à la sync.
  */
 class AppEngine {
   private streamer!: StreamManager;
-  private evolutionChart: Chart | null = null;
 
   constructor() {
     this.init();
@@ -27,103 +31,100 @@ class AppEngine {
   private async init() {
     console.log("[L'Architecte] Démarrage du Système Heavyweight...");
 
-    // Infrastructure — DB V5
     await PersistenceEngine.init();
-    await this.seedIfNeeded();
     await WealthManager.init();
 
-    // Hydratation UI
+    // Cache trades for V2 — Purge old trades on startup
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    await PersistenceEngine.purgeOldTrades(todayStart.getTime());
+    const trades = await PersistenceEngine.getAllTradesWithFees();
+
+    // Infrastructure & Sync
+    this.initPasscode();
     this.initNavigation();
     this.initPrivacyMode();
     this.initConfigForm();
     this.initStreamer();
-    this.initTrades();
-    this.initTradeModal();
+    this.initSync();
+
+    // External Managers
     ExpenseManager.init();
     await SubscriptionManager.init();
     this.initSubTabs();
-    this.initEvolutionChart();
+    this.initExportButtons();
+    void CurrencyManager.init();
+    LiabilityManager.init();
+
+    // Extracted Modules
+    VaultPanel.init();
+    DashboardWidgets.init(trades);
+    EvolutionChart.init(trades);
+    MonteCarloUI.init();
 
     console.log("[L'Architecte] Système Opérationnel.");
   }
 
-  /**
-   * Seed conditionnel : insert les données mock une seule fois.
-   * Utilise app_config.seeded pour éviter le re-seed.
-   */
-  private async seedIfNeeded() {
-    const seeded = await PersistenceEngine.getConfig('seeded');
-    if (seeded === 'true') return;
-
-    console.log("[L'Architecte] Premier lancement — injection des données de démonstration...");
-    await PersistenceEngine.saveTrades(mockTrades, mockTradeFees);
-    await PersistenceEngine.setConfig('seeded', 'true');
-    console.log("[L'Architecte] Seed terminé.");
-  }
-
   private initNavigation() {
-    const navMap: Record<string, string> = {
-      'nav-dash': 'view-dashboard',
-      'nav-wealth': 'view-wealth',
-      'nav-lab': 'view-lab'
-    };
+    const navLinks = document.querySelectorAll('.nav-item');
+    const views = document.querySelectorAll('.view-section');
 
-    Object.entries(navMap).forEach(([navId, viewId]) => {
-      const el = document.getElementById(navId);
-      el?.addEventListener('click', (e) => {
+    navLinks.forEach(link => {
+      link.addEventListener('click', (e) => {
         e.preventDefault();
-        this.triggerHaptic('click');
+        const target = (link as HTMLElement).dataset.view;
+        if (!target) return;
 
-        // Changement de vue
-        document.querySelectorAll('.view-section').forEach(s => (s as HTMLElement).style.display = 'none');
-        const target = document.getElementById(viewId);
-        if (target) target.style.display = 'block';
+        navLinks.forEach(l => l.classList.remove('active'));
+        link.classList.add('active');
 
-        // État de la navigation
-        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-        el.classList.add('active');
+        views.forEach(v => {
+          (v as HTMLElement).style.display = v.id === `view-${target}` ? 'block' : 'none';
+        });
 
-        // Rafraîchissement contextuel
-        if (viewId === 'view-wealth') {
-          setTimeout(() => WealthManager.hydrate(), 50);
-        }
-        if (viewId === 'view-dashboard') this.initEvolutionChart();
+        triggerHaptic('click');
       });
     });
 
-    // Déclencheur Config (icône du haut)
-    document.getElementById('nav-config-trigger')?.addEventListener('click', () => {
-      document.querySelectorAll('.view-section').forEach(s => (s as HTMLElement).style.display = 'none');
-      const configView = document.getElementById('view-config');
-      if (configView) configView.style.display = 'block';
-      this.triggerHaptic('click');
+    const configTrigger = document.getElementById('nav-config-trigger');
+    configTrigger?.addEventListener('click', () => {
+      navLinks.forEach(l => l.classList.remove('active'));
+      views.forEach(v => {
+        (v as HTMLElement).style.display = v.id === 'view-config' ? 'block' : 'none';
+      });
+      triggerHaptic('click');
     });
   }
 
   private initSubTabs() {
-    const bar = document.querySelector('.sub-tab-bar');
-    bar?.addEventListener('click', (e) => {
-      const btn = (e.target as HTMLElement).closest('.sub-tab-btn') as HTMLElement | null;
-      if (!btn) return;
+    const tabs = document.querySelectorAll('.sub-tab-btn');
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const parent = tab.closest('.sub-tab-bar');
+        const targetId = (tab as HTMLElement).dataset.subtab;
+        if (!parent || !targetId) return;
 
-      const target = btn.dataset.subtab;
-      if (!target) return;
+        parent.querySelectorAll('.sub-tab-btn').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
 
-      // Switch active button
-      bar.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+        // Hide all sub-tabs, show the target one
+        document.querySelectorAll('.subtab-content').forEach(v => {
+          (v as HTMLElement).style.display = v.id === `subtab-${targetId}` ? 'block' : 'none';
+        });
 
-      // Switch content
-      document.querySelectorAll('.subtab-content').forEach(c => (c as HTMLElement).style.display = 'none');
-      const content = document.getElementById(`subtab-${target}`);
-      if (content) content.style.display = 'block';
+        triggerHaptic('click');
+      });
+    });
+  }
 
-      // Re-render subscriptions when switching to that tab
-      if (target === 'subscriptions') {
-        void SubscriptionManager.render();
-      }
-
-      this.triggerHaptic('click');
+  private initExportButtons() {
+    document.getElementById('export-pdf')?.addEventListener('click', () => {
+      showToast('Export PDF en cours...', 'info');
+      // ExportManager.exportWealthPDF(); // Future implementation
+    });
+    document.getElementById('export-csv')?.addEventListener('click', () => {
+      showToast('Export CSV en cours...', 'info');
+      // ExportManager.exportWealthCSV(); // Future implementation
     });
   }
 
@@ -139,7 +140,7 @@ class AppEngine {
         if (el) el.classList.toggle('privacy-blur', isBlurred);
       });
 
-      this.triggerHaptic('click');
+      triggerHaptic('click');
     });
   }
 
@@ -153,7 +154,7 @@ class AppEngine {
         const vaultPassword = (document.getElementById('vault-password') as HTMLInputElement)?.value;
 
         if (!vaultPassword || vaultPassword.length < 8) {
-          this.showToast("MOT DE PASSE REQUIS (8+ CARACTÈRES)", "error");
+          showToast("MOT DE PASSE REQUIS (8+ CARACTÈRES)", "error");
           return;
         }
 
@@ -162,11 +163,13 @@ class AppEngine {
 
         localStorage.setItem('BINGX_API_KEY_SECURE', encKey);
         localStorage.setItem('BINGX_API_SECRET_SECURE', encSecret);
+        // Cache vault password to prevent refriction
+        sessionStorage.setItem('GRID_VAULT_CACHE', vaultPassword);
 
-        this.showToast("COFFRE LIÉ", "success");
-        this.triggerHaptic('success');
+        showToast("COFFRE LIÉ", "success");
+        triggerHaptic('success');
       } catch (err) {
-        this.showToast("ERREUR COFFRE", "error");
+        showToast("ERREUR COFFRE", "error");
       }
     });
   }
@@ -182,217 +185,125 @@ class AppEngine {
         statusDot.style.background = status === 'STABLE' ? 'var(--color-success)' : 'var(--color-danger)';
       }
     };
-
     this.streamer.connect();
   }
 
-  /**
-   * Chargement et affichage des trades depuis IndexedDB (3FN).
-   * Les frais sont récupérés depuis le store trade_fees.
-   */
-  private async initTrades() {
-    const tradesWithFees = await PersistenceEngine.getAllTradesWithFees();
-    const container = document.getElementById('trade-list');
-    if (!container) return;
+  private initSync() {
+    const btn = document.getElementById('btn-sync-bingx');
+    const syncLabel = document.getElementById('sync-label');
+    const syncIcon = document.getElementById('sync-icon');
+    const syncTimestamp = document.getElementById('sync-timestamp');
 
-    if (tradesWithFees.length === 0) {
-      container.innerHTML = '<div class="text-muted" style="padding: 20px; text-align: center;">Aucun trade archivé.</div>';
-      return;
+    if (!btn) return;
+
+    const lastSync = localStorage.getItem('BINGX_LAST_SYNC');
+    if (lastSync && syncTimestamp) {
+      syncTimestamp.textContent = `DERNIÈRE SYNC : ${new Date(parseInt(lastSync)).toLocaleString('fr-FR')}`;
     }
 
-    container.innerHTML = `
-      <div class="label-caps" style="margin-bottom: 12px;">OPÉRATIONS RÉCENTES</div>
-      ${tradesWithFees.slice(0, 10).map(({ trade: t, fees }) => {
-      const totalFees = fees.reduce((sum: number, f: TradeFee) => sum + f.amount, 0);
-      const netPnL = t.grossPnL - totalFees;
+    btn.addEventListener('click', async () => {
+      const encKey = localStorage.getItem('BINGX_API_KEY_SECURE');
+      const encSecret = localStorage.getItem('BINGX_API_SECRET_SECURE');
 
-      return `
-          <div class="hw-list-item clickable" data-trade-id="${t.id}" role="button" tabindex="0">
-            <div style="flex: 1;">
-              <div style="font-weight: 700;">${escapeHTML(t.pair)}</div>
-              <div class="label-caps" style="font-size: 0.55rem; color: var(--color-slate-400);">${escapeHTML(t.type)} ${t.leverage}X | FRAIS : ${totalFees.toFixed(3)} €</div>
-            </div>
-            <div class="${netPnL >= 0 ? 'pnl-pos' : 'pnl-neg'}" style="text-align: right;">
-              <div style="font-weight: 800;">${netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)}</div>
-              <div class="label-caps" style="font-size: 0.5rem; opacity: 0.6;">PNL NET</div>
-            </div>
-          </div>
-        `;
-    }).join('')}
-    `;
-
-    // Rendre chaque trade cliquable → ouvrir le modal P&L
-    container.querySelectorAll('[data-trade-id]').forEach(el => {
-      el.addEventListener('click', () => {
-        const tradeId = (el as HTMLElement).dataset.tradeId;
-        if (tradeId) this.showTradeModal(tradeId);
-      });
-    });
-  }
-
-  private initTradeModal() {
-    const modal = document.getElementById('trade-modal');
-    const closeBtn = document.getElementById('trade-modal-close');
-
-    // Close on backdrop click
-    modal?.addEventListener('click', (e) => {
-      if (e.target === modal) modal.style.display = 'none';
-    });
-
-    // Close on button click
-    closeBtn?.addEventListener('click', () => {
-      if (modal) modal.style.display = 'none';
-    });
-  }
-
-  /**
-   * Affiche la fiche P&L d'un trade (modal style broker).
-   * Récupère trade + fees depuis IndexedDB (3FN).
-   */
-  private async showTradeModal(tradeId: string) {
-    const result = await PersistenceEngine.getTradeWithFees(tradeId);
-    if (!result) return;
-
-    const { trade, fees } = result;
-    const totalFees = fees.reduce((sum, f) => sum + f.amount, 0);
-    const netPnL = trade.grossPnL - totalFees;
-
-    // Header
-    const pairEl = document.getElementById('tm-pair');
-    const badgeEl = document.getElementById('tm-badge');
-    if (pairEl) pairEl.textContent = trade.pair;
-    if (badgeEl) {
-      badgeEl.textContent = `${trade.type} ${trade.leverage}X`;
-      badgeEl.className = `trade-sheet-badge ${trade.type === 'SHORT' ? 'short' : ''}`;
-    }
-
-    // Grid de détails
-    const set = (id: string, val: string) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = val;
-    };
-
-    set('tm-entry', `${trade.entryPrice.toLocaleString()} €`);
-    set('tm-exit', trade.exitPrice ? `${trade.exitPrice.toLocaleString()} €` : 'EN COURS');
-    set('tm-size', `${trade.size.toLocaleString()} USDT`);
-    set('tm-leverage', `${trade.leverage}X`);
-    set('tm-date', new Date(trade.timestamp).toLocaleString('fr-FR'));
-    set('tm-status', trade.status === 'CLOSED' ? '✅ FERMÉ' : '🔵 OUVERT');
-
-    // Section frais
-    const feesContainer = document.getElementById('tm-fees');
-    if (feesContainer) {
-      if (fees.length === 0) {
-        feesContainer.innerHTML = '<div class="text-muted" style="padding:8px; font-size:0.8rem;">Aucun frais enregistré</div>';
-      } else {
-        feesContainer.innerHTML = fees.map(f => `
-          <div class="trade-fee-row">
-            <span class="fee-type">${escapeHTML(f.fee_type)} ${f.is_actual ? '<span class="fee-actual">RÉEL</span>' : ''}</span>
-            <span class="fee-amount">-${f.amount.toFixed(4)} €</span>
-          </div>
-        `).join('');
+      if (!encKey || !encSecret) {
+        showToast('CONFIGUREZ VOS CLÉS API DANS ⚙️', 'error');
+        return;
       }
-    }
 
-    // Bannière PnL
-    const banner = document.getElementById('tm-pnl-banner');
-    if (banner) {
-      banner.className = `trade-pnl-banner ${netPnL >= 0 ? 'pnl-pos' : 'pnl-neg'}`;
-    }
-    set('tm-gross', `${trade.grossPnL >= 0 ? '+' : ''}${trade.grossPnL.toFixed(2)} €`);
-    set('tm-total-fees', `-${totalFees.toFixed(4)} €`);
-    set('tm-net', `${netPnL >= 0 ? '+' : ''}${netPnL.toFixed(2)} €`);
+      let password = sessionStorage.getItem('GRID_VAULT_CACHE');
+      if (!password) {
+        password = prompt('🔐 Mot de passe du coffre-fort :');
+        if (!password) return;
+        sessionStorage.setItem('GRID_VAULT_CACHE', password);
+      }
 
-    // Ouvrir le modal
-    const modal = document.getElementById('trade-modal');
-    if (modal) {
-      modal.style.display = 'flex';
-      this.triggerHaptic('success');
-    }
-  }
+      btn.setAttribute('disabled', 'true');
+      btn.style.opacity = '0.6';
+      if (syncLabel) syncLabel.textContent = 'SYNCHRONISATION...';
+      if (syncIcon) syncIcon.textContent = '⏳';
 
+      try {
+        const apiKey = await SafeVault.decrypt(encKey, password);
+        const apiSecret = await SafeVault.decrypt(encSecret, password);
+        const connector = new BingXConnector({ apiKey, secretKey: apiSecret });
+        const balance = await connector.fetchBalance();
 
-  private async initEvolutionChart() {
-    const ctx = document.getElementById('evolutionChart') as HTMLCanvasElement;
-    if (!ctx || this.evolutionChart) return;
+        const startDate = new Date('2026-02-11T00:00:00Z');
 
-    // Charger les trades réels depuis IDB
-    const tradesWithFees = await PersistenceEngine.getAllTradesWithFees();
-    const sortedTrades = tradesWithFees
-      .sort((a, b) => a.trade.timestamp - b.trade.timestamp);
+        await PersistenceEngine.clearTrades();
+        const freshTrades = await connector.fetchTrades({
+          limit: 1000,
+          startTime: startDate.getTime(),
+        });
 
-    // Courbe d'équité cumulée
-    let cumulative = 0;
-    const labels = sortedTrades.map(t =>
-      new Date(t.trade.timestamp).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
-    );
-    const data = sortedTrades.map(({ trade, fees }) => {
-      const totalFees = fees.reduce((s, f) => s + f.amount, 0);
-      cumulative += trade.grossPnL - totalFees;
-      return parseFloat(cumulative.toFixed(2));
-    });
+        const updatedTrades = await PersistenceEngine.getAllTradesWithFees();
 
-    // Fallback si pas de données réelles
-    if (data.length === 0) {
-      labels.push('—');
-      data.push(0);
-    }
+        // Refresh UI via delegates
+        DashboardWidgets.setTrades(updatedTrades);
+        DashboardWidgets.updateWidgets();
+        DashboardWidgets.renderDayView();
 
-    this.evolutionChart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          data,
-          borderColor: '#38BDF8',
-          borderWidth: 2,
-          pointRadius: 0,
-          tension: 0.4,
-          fill: true,
-          backgroundColor: 'rgba(56, 189, 248, 0.05)'
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { display: false },
-          y: { grid: { color: 'rgba(255,255,255,0.03)' }, ticks: { display: false } }
+        EvolutionChart.setTrades(updatedTrades);
+        EvolutionChart.update();
+
+        if (balance) {
+          const equityEl = document.getElementById('equity-value');
+          const profitEl = document.getElementById('profit-value');
+          if (equityEl) equityEl.textContent = `${balance.equity.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`;
+          if (profitEl) {
+            const pnl = balance.unrealizedPnL;
+            profitEl.textContent = `${pnl >= 0 ? '+' : ''}${pnl.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} $`;
+            profitEl.className = pnl >= 0 ? 'pnl-pos' : 'pnl-neg';
+          }
+          DashboardWidgets.updateCryptoWidgets(balance.equity, balance.unrealizedPnL);
         }
+
+        const now = Date.now();
+        localStorage.setItem('BINGX_LAST_SYNC', now.toString());
+        if (syncTimestamp) syncTimestamp.textContent = `DERNIÈRE SYNC : ${new Date(now).toLocaleString('fr-FR')}`;
+
+        showToast(`${freshTrades.length} TRADE(S) SYNCHRONISÉ(S)`, 'success');
+        triggerHaptic('success');
+
+      } catch (err: any) {
+        console.error('[BingX Sync] Error:', err);
+        if (err.message?.includes('VAULT_PURGED')) showToast('COFFRE PURGÉ — RECONFIGURER LES CLÉS', 'error');
+        else if (err.message?.includes('VAULT_BREACH')) showToast('MOT DE PASSE INCORRECT', 'error');
+        else showToast(`ERREUR SYNC : ${err.message || 'Inconnue'}`, 'error');
+      } finally {
+        btn.removeAttribute('disabled');
+        btn.style.opacity = '1';
+        if (syncLabel) syncLabel.textContent = 'SYNC BINGX';
+        if (syncIcon) syncIcon.textContent = '🔄';
       }
     });
   }
+  private initPasscode() {
+    const passcode = localStorage.getItem('GRID_ACCESS_CODE');
+    const overlay = document.getElementById('passcode-overlay');
+    const input = document.getElementById('passcode-input') as HTMLInputElement;
+    const form = document.getElementById('passcode-form');
+    const errorMsg = document.getElementById('passcode-error');
 
-
-
-  private showToast(msg: string, type: 'success' | 'error' | 'info' = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = `hw-card glass-card toast-${type}`;
-    toast.style.position = 'fixed';
-    toast.style.top = '20px';
-    toast.style.right = '20px';
-    toast.style.padding = '12px 24px';
-    toast.style.borderLeft = `4px solid var(--color-${type === 'info' ? 'primary' : type})`;
-    toast.style.zIndex = '9999';
-    toast.innerText = msg;
-
-    container.appendChild(toast);
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      setTimeout(() => toast.remove(), 500);
-    }, 3000);
-  }
-
-  private triggerHaptic(type: 'click' | 'success') {
-    if ('vibrate' in navigator) {
-      navigator.vibrate(type === 'success' ? [50, 30, 50] : 10);
+    if (passcode === '565256') {
+      if (overlay) overlay.style.display = 'none';
+    } else {
+      if (overlay) overlay.style.display = 'flex';
     }
+
+    form?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (input?.value === '565256') {
+        localStorage.setItem('GRID_ACCESS_CODE', '565256');
+        if (overlay) overlay.style.display = 'none';
+        triggerHaptic('success');
+      } else {
+        if (errorMsg) errorMsg.style.display = 'block';
+        if (input) input.value = '';
+        triggerHaptic('error');
+      }
+    });
   }
 }
 
-// Initialisation privée — pas d'exposition globale
 new AppEngine();
